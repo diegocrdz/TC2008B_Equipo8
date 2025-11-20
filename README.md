@@ -1,13 +1,34 @@
 # TC2008B_Equipo8
 
-## Integrantes
-----------
+# :city_sunrise: Reto - Movilidad urbana 
+## :vertical_traffic_light: . . :car: . :ambulance: . :blue_car: . :taxi: . :articulated_lorry: . . . . . :busstop:
 
 - Aquiba Yudah Benarroch Bittan — A01783710
 - Diego Córdova Rodríguez — A01781166
 - Lorena Estefanía Chewtat Torres — A01785378
+![Banner](./img/banner.jpg)
 
+---
 
-### Descripción
-------------------
-Este proyecto propone una solución basada en una simulación multiagente y visualización gráfica para abordar la movilidad urbana en México y reducir la congestión vehicular. La simulación modela agentes como vehículos y semáforos y permite evaluar estrategias que disminuyan el número de vehículos en circulación, tomar el camino menos congestionado (aunque no sea el más corto) para auemntar movilidad, disminuir el consumo y la contaminación. La solución consistirá de una interfaz gráfica que muestra el flujo de tráfico.
+## :clipboard: Información general
+
+**Bloque:** TC2008B - Modelación de sistemas multiagentes con gráficas computacionales
+
+**Grupo:** 301
+
+**Equipo 8:**
+- Aquiba Yudah Benarroch Bittán - A01783710
+- Diego Córdova Rodríguez - A01781166
+- Lorena Estefanía Chewtat Torres - A01785378
+
+---
+
+## :memo: Descripción
+
+> **Objetivo:** Desarrollar una simulación multiagente que modele el tráfico urbano, permitiendo evaluar y visualizar estrategias para mejorar la movilidad y reducir la congestión vehicular en ciudades mexicanas.
+
+Este proyecto propone una solución basada en una simulación multiagente y visualización gráfica para abordar la movilidad urbana en México, proponiendo soluciones para reducción de congestión vehicular.
+
+La simulación modela agentes como vehículos y semáforos, permitiendo evaluar estrategias que disminuyan el número de vehículos en circulación, tomando así el camino menos congestionado para mejorar la movilidad de la ciudad.
+
+![Imagen de movilidad urbana](./img/cars.gif)
