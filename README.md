@@ -3,6 +3,9 @@
 # :city_sunrise: Reto - Movilidad urbana 
 ## :vertical_traffic_light: . . :car: . :ambulance: . :blue_car: . :taxi: . :articulated_lorry: . . . . . :busstop:
 
+- Aquiba Yudah Benarroch Bittan — A01783710
+- Diego Córdova Rodríguez — A01781166
+- Lorena Estefanía Chewtat Torres — A01785378
 ![Banner](./img/banner.jpg)
 
 ---
