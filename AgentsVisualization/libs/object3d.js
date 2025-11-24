@@ -16,7 +16,9 @@ class Object3D {
         position=[0, 0, 0],
         rotation=[0, 0, 0],
         scale=[1, 1, 1],
-        color=[Math.random(), Math.random(), Math.random(), 1.0]) {
+        color=[Math.random(), Math.random(), Math.random(), 1.0],
+        state=false
+    ) {
 
         this.id = id;
         // Initial transformations

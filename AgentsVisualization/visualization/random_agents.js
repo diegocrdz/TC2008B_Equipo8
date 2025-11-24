@@ -25,7 +25,7 @@ import {
 
 // Define the shader code, using GLSL 3.00
 import vsGLSL from '../assets/shaders/vs_color.glsl?raw';
-import fsGLSL from '../assets/shaders/fs_color.glsl?raw';
+import fsGLSL from '../assets/shaders/fs_color1.glsl?raw';
 
 const scene = new Scene3D();
 
@@ -174,7 +174,8 @@ function drawObject(gl, programInfo, object, viewProjectionMatrix, fract) {
 
   // Model uniforms
   let objectUniforms = {
-    u_transforms: wvpMat
+    u_transforms: wvpMat,
+    u_color: object.color,
   }
   twgl.setUniforms(programInfo, objectUniforms);
 

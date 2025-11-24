@@ -144,3 +144,5 @@ __pycache__/
 .agents
 .DS_Store
 .vite
+
+.agents/

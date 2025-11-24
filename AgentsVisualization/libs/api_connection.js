@@ -75,6 +75,7 @@ async function getAgents() {
                     const newAgent = new Object3D(agent.id, [agent.x, agent.y, agent.z]);
                     // Store the initial position
                     newAgent['oldPosArray'] = newAgent.posArray;
+                    newAgent.state = agent.state;
                     agents.push(newAgent);
                 }
                 // Log the agents array
@@ -90,6 +91,13 @@ async function getAgents() {
                         // Update the agent's position
                         current_agent.oldPosArray = current_agent.posArray;
                         current_agent.position = {x: agent.x, y: agent.y, z: agent.z};
+                        current_agent.state = agent.state;
+
+                        if (current_agent.state == true) {
+                            current_agent.color = [0.0, 1.0, 0.0, 1.0];
+                        } else {
+                            current_agent.color = [1.0, 0.0, 0.0, 1.0];
+                        }
                     }
 
                     //console.log("OLD: ", current_agent.oldPosArray,

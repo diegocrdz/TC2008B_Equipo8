@@ -1,58 +1,64 @@
-from random import shuffle
 from mesa import Model
 from mesa.discrete_space import OrthogonalMooreGrid
-from .agent import RandomAgent, ObstacleAgent
+from .agent import *
+import json
 
-class RandomModel(Model):
+
+class CityModel(Model):
     """
-    Creates a new model with random agents.
+    Creates a model based on a city map.
+
     Args:
-        num_agents: Number of agents in the simulation
-        height, width: The size of the grid to model
+        N: Number of agents in the simulation
+        seed: Random seed for the model
     """
-    def __init__(self, num_agents=10, width=8, height=8, seed=42):
+
+    def __init__(self, N, seed=42):
 
         super().__init__(seed=seed)
-        self.num_agents = num_agents
-        self.seed = seed
-        self.width = width
-        self.height = height
-        # Multigrid is a special type of grid where each cell can contain multiple agents.
-        self.grid = OrthogonalMooreGrid([width, height], torus=False)
 
-        # Identify the coordinates of the border of the grid
-        border = [(x,y) for y in range(height)
-                    for x in range(width)
-                    if y in [0, height-1] or x in [0, width - 1]]
+        # Load the map dictionary. The dictionary maps the characters in the map file to the corresponding agent.
+        dataDictionary = json.load(open("city_files/mapDictionary.json"))
 
-        # Create the border cells
-        for i, cell in enumerate(self.grid):
-            if cell.coordinate in border:
-                ObstacleAgent(self, cell=cell, unique_id=f"{5000+i}")
+        self.num_agents = N
+        self.traffic_lights = []
 
-        # Identify cells that do not have an obstacle in them
-        # empty_cells = self.grid.all_cells.select(
-        #     lambda cell: not any(isinstance(obj, ObstacleAgent) for obj in cell.agents)
-        # )
+        # Load the map file. The map file is a text file where each character represents an agent.
+        with open("city_files/2024_base.txt") as baseFile:
+            lines = baseFile.readlines()
+            self.width = len(lines[0])
+            self.height = len(lines)
 
-        # Create a list of the empty cells, and shuffle it
-        empty_cells = self.grid.empties.cells
-        shuffle(empty_cells)
+            self.grid = OrthogonalMooreGrid(
+                [self.width, self.height], capacity=100, torus=False
+            )
 
-        # Create all the moving agents
-        for i in range(self.num_agents):
-            RandomAgent(self, cell=empty_cells[i], unique_id=f"{1000+i}")
+            # Goes through each character in the map file and creates the corresponding agent.
+            for r, row in enumerate(lines):
+                for c, col in enumerate(row):
 
-        # This did not work
-        # RandomAgent.create_agents(
-        #     self,
-        #     self.num_agents,
-        #     # cell=self.random.choices(self.grid.all_cells.cells, k=self.num_agents)
-        #     cell=self.random.choices(empty_cells)
-        # )
+                    cell = self.grid[(c, self.height - r - 1)]
+
+                    if col in ["v", "^", ">", "<"]:
+                        agent = Road(self, cell, dataDictionary[col])
+
+                    elif col in ["S", "s"]:
+                        agent = Traffic_Light(
+                            self,
+                            cell,
+                            False if col == "S" else True,
+                            int(dataDictionary[col]),
+                        )
+                        self.traffic_lights.append(agent)
+
+                    elif col == "#":
+                        agent = Obstacle(self, cell)
+
+                    elif col == "D":
+                        agent = Destination(self, cell)
 
         self.running = True
 
     def step(self):
-        '''Advance the model by one step.'''
+        """Advance the model by one step."""
         self.agents.shuffle_do("step")
