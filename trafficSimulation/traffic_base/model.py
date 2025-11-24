@@ -24,7 +24,7 @@ class CityModel(Model):
         self.traffic_lights = []
 
         # Load the map file. The map file is a text file where each character represents an agent.
-        with open("city_files/2024_base.txt") as baseFile:
+        with open("city_files/2022_base.txt") as baseFile:
             lines = baseFile.readlines()
             self.width = len(lines[0])
             self.height = len(lines)
@@ -56,7 +56,14 @@ class CityModel(Model):
 
                     elif col == "D":
                         agent = Destination(self, cell)
+                    
+                    elif col == "C":
+                        # First create the Road agent below the car
+                        # We use a default direction because in the map, the car is represented by 'C' and there is no direction info.
+                        road_agent = Road(self, cell, dataDictionary[">"]) 
+                        agent = CarAgent(self, cell)
 
+                        
         self.running = True
 
     def step(self):
