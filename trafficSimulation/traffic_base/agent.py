@@ -16,6 +16,7 @@ class CarAgent(CellAgent):
         self.cell = cell
         self.state = "idle"  # Initial state
         self.lastDirection = None  # To keep track of last movement direction
+        self.moved_for_ambulance = False  # Track if already moved to let ambulance pass
 
     def step(self):
         """
@@ -31,6 +32,9 @@ class CarAgent(CellAgent):
         # Check current state and decide next action
         if self.state == "idle":
             # Check what's ahead
+            next_cell = self.checkAmbulance()
+            if next_cell is None:
+                return
             next_cell = self.checkCars()
 
             # If state is moving, move
@@ -47,6 +51,9 @@ class CarAgent(CellAgent):
         
         elif self.state == "waitingTL":
             # Check if light is green
+            next_cell = self.checkAmbulance()
+            if next_cell is None:
+                return
             next_cell = self.checkCars()
             # If Traffic light is green, we can move
             if self.state == "moving" and next_cell:
@@ -57,7 +64,6 @@ class CarAgent(CellAgent):
 
     def getNextCell(self):
         """Gets the next cell to move to based on current position."""
-        
         # Get the Road agent in current cell
         current_road = None
         traffic_light_found = False
@@ -108,6 +114,46 @@ class CarAgent(CellAgent):
             return next_cell
         
         return None
+    
+    def checkAmbulance(self):
+        """Chooses the next cell based on the state of ambulances."""
+        
+        neighbors = self.cell.neighborhood
+        ambulance_nearby = False
+    
+        for neighbor_cell in neighbors:
+            ambulance = next(
+                (obj for obj in neighbor_cell.agents if isinstance(obj, Ambulance)), None
+            )
+        
+            if ambulance and ambulance.state == "emergency":
+                ambulance_nearby = True
+                # If there's an ambulance in emergency state nearby and we haven't we need to let him pass
+                if not self.moved_for_ambulance:
+                    valid_neighbors = self.cell.neighborhood.select(
+                        lambda cell: any(isinstance(obj, Road) for obj in cell.agents) and 
+                        not any(isinstance(obj, Obstacle) 
+                        or isinstance(obj, Ambulance) 
+                        or isinstance (obj, Traffic_Light) 
+                        or isinstance(obj, CarAgent) for obj in cell.agents)
+                    ) 
+                    if valid_neighbors:
+                        new_cell = random.choice(list(valid_neighbors))
+                        self.move(new_cell)
+                        self.state = "idle"
+                        self.moved_for_ambulance = True
+                        return None  # Already moved
+                else:
+                    # Already moved for ambulance
+                    return None
+        
+        # No ambulance nearby, reset flag to false
+        if not ambulance_nearby:
+            self.moved_for_ambulance = False
+        
+        # No ambulance in emergency nearby continue
+        return self.getNextCell()   
+        
 
     def checkCars(self):
         """Chooses the next cell based on the presence of cars."""
@@ -120,9 +166,8 @@ class CarAgent(CellAgent):
 
         # Check if there's a car in the next cell
         has_car = any(isinstance(agent, CarAgent) for agent in next_cell.agents)
-        has_ambulance = any(isinstance(agent, Ambulance) for agent in next_cell.agents)
         
-        if has_car or has_ambulance:
+        if has_car:
             self.state = "waitingCar"
             return None
         
