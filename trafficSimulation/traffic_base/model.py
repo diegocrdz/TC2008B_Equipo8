@@ -62,7 +62,7 @@ class CityModel(Model):
                     
                     elif col == "C":
                         # First create the Road agent below the car
-                        # We use a default direction because in the map, the car is represented by 'C' and there is no direction info.
+                        # We check for the direction, the car is represented by 'C' and there is no direction info.
                         road_agent = Road(self, cell, dataDictionary[">"]) 
                         agent = CarAgent(self, cell)
 

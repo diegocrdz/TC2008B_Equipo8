@@ -33,14 +33,14 @@ def agent_portrayal(agent):
         portrayal["w"] = 0.8
         portrayal["h"] = 0.8
 
-    if (isinstance(agent, CarAgent)):
-        portrayal["Color"] = "blue"
+    if (isinstance(agent, Ambulance)):
+        portrayal["Color"] = "red"
         portrayal["Layer"] = 1
         portrayal["w"] = 0.5
         portrayal["h"] = 0.5
 
-    if (isinstance(agent, Ambulance)):
-        portrayal["Color"] = "black"
+    if (isinstance(agent, CarAgent)):
+        portrayal["Color"] = "blue"
         portrayal["Layer"] = 1
         portrayal["w"] = 0.5
         portrayal["h"] = 0.5
