@@ -32,7 +32,7 @@ class CarAgent(CellAgent):
             # Check what's ahead
             next_cell = self.checkCars()
 
-            # If state is now "moving", execute the move
+            # If state is moving, move
             if self.state == "moving" and next_cell:
                 self.move(next_cell)
                 self.state = "idle"
@@ -60,10 +60,13 @@ class CarAgent(CellAgent):
         # Get the Road agent in current cell
         current_road = None
         traffic_light_found = False
+        # Set direction to None initially
+        direction = None
 
         for agent in self.cell.agents:
             if isinstance(agent, Traffic_Light):
                 traffic_light_found = True
+                # If there's a traffic light, use the last known direction
                 direction = self.lastDirection
                 break
         
@@ -71,13 +74,14 @@ class CarAgent(CellAgent):
             for agent in self.cell.agents:
                 if isinstance(agent, Road):
                     current_road = agent
+                    # Get direction from the road
                     direction = current_road.direction
                     self.lastDirection = direction
                     print('Last direction set to:', self.lastDirection)
                     break
-        
-        if not current_road:
-            return None  # No road found, cannot move
+        # If no road found, cannot move
+        if direction is None:
+            return None 
 
         # Get next cell based on road direction
         x, y = self.cell.coordinate
@@ -123,7 +127,9 @@ class CarAgent(CellAgent):
         
         # Check if there's a traffic light
         has_traffic_light = any(isinstance(agent, Traffic_Light) for agent in next_cell.agents)
-                
+
+        print(f"¿Hay semáforo en next_cell? {has_traffic_light}")
+        
         if has_traffic_light:
             # If there's a traffic light, check it
             return self.checkTL(next_cell)
