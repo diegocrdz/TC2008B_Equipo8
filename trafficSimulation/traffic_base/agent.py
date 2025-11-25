@@ -77,7 +77,6 @@ class CarAgent(CellAgent):
                     # Get direction from the road
                     direction = current_road.direction
                     self.lastDirection = direction
-                    print('Last direction set to:', self.lastDirection)
                     break
         # If no road found, cannot move
         if direction is None:
@@ -127,8 +126,160 @@ class CarAgent(CellAgent):
         
         # Check if there's a traffic light
         has_traffic_light = any(isinstance(agent, Traffic_Light) for agent in next_cell.agents)
+        
+        if has_traffic_light:
+            # If there's a traffic light, check it
+            return self.checkTL(next_cell)
+        
+        # Path is clear, change state to moving
+        self.state = "moving"
+        return next_cell
+    
+    def checkTL(self, next_cell):
+        """Chooses the next cell based on the state of the traffic light."""
+        # Check if the traffic light is green
+        traffic_light = next(
+            (obj for obj in next_cell.agents if isinstance(obj, Traffic_Light)), None
+        )
 
-        print(f"¿Hay semáforo en next_cell? {has_traffic_light}")
+        if traffic_light and not traffic_light.is_green:
+            # Traffic light is red, wait
+            self.state = "waitingTL"
+            return None
+        else:
+            # Traffic light is green, can move
+            self.state = "moving"
+            return next_cell
+    
+    def move(self, next_cell):
+        """Moves the agent to the next cell."""
+        self.cell = next_cell
+
+class Ambulance(CellAgent):
+    """
+    Agent that moves randomly.
+    """
+    def __init__(self, model, cell):
+        """
+        Creates a new random agent.
+        Args:
+            model: Model reference for the agent
+            cell: The initial position of the agent
+        """
+        super().__init__(model)
+        self.cell = cell
+        self.state = "idle"  # Initial state
+        self.lastDirection = None  # To keep track of last movement direction
+
+    def step(self):
+        """
+        Executes one step of the car's behavior.
+        
+        Possible states:
+        - idle: Initial state, ready to move
+        - waitingCar: Waiting for the car ahead to move
+        - waitingTL: Waiting at the traffic light
+        - moving: Moving to the next cell
+        - Emergency: Moving regardless of traffic rules
+        """
+
+        # Check current state and decide next action
+        if self.state == "idle":
+            # Check what's ahead
+            next_cell = self.checkCars()
+
+            # If state is moving, move
+            if self.state == "moving" and next_cell:
+                self.move(next_cell)
+                self.state = "idle"
+        
+        elif self.state == "waitingCar":
+            # Check again if car moved
+            next_cell = self.checkCars()
+            if self.state == "moving" and next_cell:
+                self.move(next_cell)
+                self.state = "idle"
+        
+        elif self.state == "waitingTL":
+            # Check if light is green
+            next_cell = self.checkCars()
+            # If Traffic light is green, we can move
+            if self.state == "moving" and next_cell:
+                self.move(next_cell)
+                self.state = "idle"
+
+    def getNextCell(self):
+        """Gets the next cell to move to based on current position."""
+        
+        # Get the Road agent in current cell
+        current_road = None
+        traffic_light_found = False
+        # Set direction to None initially
+        direction = None
+
+        for agent in self.cell.agents:
+            if isinstance(agent, Traffic_Light):
+                traffic_light_found = True
+                # If there's a traffic light, use the last known direction
+                direction = self.lastDirection
+                break
+        
+        if not traffic_light_found:
+            for agent in self.cell.agents:
+                if isinstance(agent, Road):
+                    current_road = agent
+                    # Get direction from the road
+                    direction = current_road.direction
+                    self.lastDirection = direction
+                    break
+        # If no road found, cannot move
+        if direction is None:
+            return None 
+
+        # Get next cell based on road direction
+        x, y = self.cell.coordinate
+        
+        if direction == "Up":
+            next_coord = (x, y + 1)
+        elif direction == "Down":
+            next_coord = (x, y - 1)
+        elif direction == "Left":
+            next_coord = (x - 1, y)
+        elif direction == "Right":
+            next_coord = (x + 1, y)
+        else:
+            return None  # Invalid direction
+
+        # Get the next cell from grid
+        next_cell = self.model.grid[next_coord]
+        
+        # Verify next cell has a road and no obstacle
+        has_road = any(isinstance(agent, Road) for agent in next_cell.agents)
+        has_obstacle = any(isinstance(agent, Obstacle) for agent in next_cell.agents)
+        
+        if has_road and not has_obstacle:
+            return next_cell
+        
+        return None
+
+    def checkCars(self):
+        """Chooses the next cell based on the presence of cars."""
+        
+        # Get next cell
+        next_cell = self.getNextCell()
+
+        if next_cell is None:
+            return None
+
+        # Check if there's a car in the next cell
+        has_car = any(isinstance(agent, CarAgent) for agent in next_cell.agents)
+        
+        if has_car:
+            self.state = "waitingCar"
+            return None
+        
+        # Check if there's a traffic light
+        has_traffic_light = any(isinstance(agent, Traffic_Light) for agent in next_cell.agents)
         
         if has_traffic_light:
             # If there's a traffic light, check it
