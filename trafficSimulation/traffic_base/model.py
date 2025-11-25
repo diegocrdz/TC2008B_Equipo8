@@ -66,6 +66,12 @@ class CityModel(Model):
                         road_agent = Road(self, cell, dataDictionary[">"]) 
                         agent = CarAgent(self, cell)
 
+                    elif col == "A":
+                        # First create the Road agent below the ambulance
+                        # We use a default direction because in the map, the ambulance is represented by 'A' and there is no direction info.
+                        road_agent = Road(self, cell, dataDictionary["v"]) 
+                        agent = Ambulance(self, cell)
+
 
         self.running = True
 

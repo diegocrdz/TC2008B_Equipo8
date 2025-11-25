@@ -1,5 +1,5 @@
 from trafficBase.agent import *
-from trafficBase.model import CityModel
+from trafficBase.model import CityModel 
 from mesa.visualization import CanvasGrid, BarChartModule
 from mesa.visualization import ModularServer
 
@@ -35,6 +35,12 @@ def agent_portrayal(agent):
 
     if (isinstance(agent, CarAgent)):
         portrayal["Color"] = "blue"
+        portrayal["Layer"] = 1
+        portrayal["w"] = 0.5
+        portrayal["h"] = 0.5
+
+    if (isinstance(agent, Ambulance)):
+        portrayal["Color"] = "black"
         portrayal["Layer"] = 1
         portrayal["w"] = 0.5
         portrayal["h"] = 0.5
