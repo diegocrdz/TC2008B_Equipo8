@@ -27,7 +27,7 @@ def agent_portrayal(agent):
         portrayal.color = "#555"
     
     if isinstance(agent, Ambulance):
-        portrayal.color = "red"
+        portrayal.color = "orange"
 
     if isinstance(agent, CarAgent):
         portrayal.color = "blue"

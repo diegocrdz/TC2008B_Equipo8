@@ -223,7 +223,7 @@ class Ambulance(CellAgent):
         self._has_emergency = random.choice([True, False])  # Random emergency state
         self.state = "emergency" if self._has_emergency else "idle"  # Initial state
         self.lastDirection = None  # To keep track of last movement direction
-        print(f"Ambulance state: {self.state}")
+        print(f"ID: {self.unique_id} Ambulance state: {self.state}")
 
     def step(self):
         """
