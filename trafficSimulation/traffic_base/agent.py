@@ -43,6 +43,10 @@ class CarAgent(CellAgent):
                 self.state = "idle"
         
         elif self.state == "waitingCar":
+            # Chek for ambulance first
+            next_cell = self.checkAmbulance()
+            if next_cell is None:
+                return
             # Check again if car moved
             next_cell = self.checkCars()
             if self.state == "moving" and next_cell:
@@ -50,10 +54,11 @@ class CarAgent(CellAgent):
                 self.state = "idle"
         
         elif self.state == "waitingTL":
-            # Check if light is green
+            # Check for ambulance first
             next_cell = self.checkAmbulance()
             if next_cell is None:
                 return
+            # Check if light is green
             next_cell = self.checkCars()
             # If Traffic light is green, we can move
             if self.state == "moving" and next_cell:
@@ -247,6 +252,12 @@ class Ambulance(CellAgent):
 
         # Check current state and decide next action
         if self.state == "idle":
+            
+            # Check for ambulance first
+            next_cell = self.checkAmbulance()
+            if next_cell is None:
+                return
+
             # Check what's ahead
             next_cell = self.checkCars()
 
@@ -256,6 +267,10 @@ class Ambulance(CellAgent):
                 self.state = "idle"
         
         elif self.state == "waitingCar":
+            # Chek for ambulance first
+            next_cell = self.checkAmbulance()
+            if next_cell is None:
+                return
             # Check again if car moved
             next_cell = self.checkCars()
             if self.state == "moving" and next_cell:
@@ -263,6 +278,10 @@ class Ambulance(CellAgent):
                 self.state = "idle"
         
         elif self.state == "waitingTL":
+            # Check for ambulance first
+            next_cell = self.checkAmbulance()
+            if next_cell is None:
+                return
             # Check if light is green
             next_cell = self.checkCars()
             # If Traffic light is green, we can move
@@ -323,6 +342,45 @@ class Ambulance(CellAgent):
             return next_cell
         
         return None
+
+    def checkAmbulance(self):
+        """Chooses the next cell based on the state of ambulances."""
+        
+        neighbors = self.cell.neighborhood
+        ambulance_nearby = False
+    
+        for neighbor_cell in neighbors:
+            ambulance = next(
+                (obj for obj in neighbor_cell.agents if isinstance(obj, Ambulance)), None
+            )
+        
+            if ambulance and ambulance.state == "emergency":
+                ambulance_nearby = True
+                # If there's an ambulance in emergency state nearby and we haven't we need to let him pass
+                if not self.moved_for_ambulance:
+                    valid_neighbors = self.cell.neighborhood.select(
+                        lambda cell: any(isinstance(obj, Road) for obj in cell.agents) and 
+                        not any(isinstance(obj, Obstacle) 
+                        or isinstance(obj, Ambulance) 
+                        or isinstance (obj, Traffic_Light) 
+                        or isinstance(obj, CarAgent) for obj in cell.agents)
+                    ) 
+                    if valid_neighbors:
+                        new_cell = random.choice(list(valid_neighbors))
+                        self.move(new_cell)
+                        self.state = "idle"
+                        self.moved_for_ambulance = True
+                        return None  # Already moved
+                else:
+                    # Already moved for ambulance
+                    return None
+        
+        # No ambulance nearby, reset flag to false
+        if not ambulance_nearby:
+            self.moved_for_ambulance = False
+        
+        # No ambulance in emergency nearby continue
+        return self.getNextCell() 
 
     def checkCars(self):
         """Chooses the next cell based on the presence of cars."""
