@@ -17,7 +17,7 @@
 **Grupo:** 301
 
 **Equipo 8:**
-- Aquiba Yudah Benarroch Bittán - A01783710
+- Aquiba Yudah Benarroch Bittan - A01783710
 - Diego Córdova Rodríguez - A01781166
 - Lorena Estefanía Chewtat Torres - A01785378
 
