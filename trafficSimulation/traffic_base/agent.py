@@ -1,4 +1,6 @@
 from mesa.discrete_space import CellAgent, FixedAgent
+import heapq
+import random
 
 class CarAgent(CellAgent):
     """
@@ -15,25 +17,63 @@ class CarAgent(CellAgent):
         self.cell = cell
         self.state = "idle"  # Initial state
         self.lastDirection = None  # To keep track of last movement direction
+        self.destination = None  # Will be assigned on first step
+        self.path = []  # List of coordinates to follow
+        
+    def assignRandomDestination(self):
+        """Assigns a random destination from available Destination agents."""
+        # Get all Destination agents from the model
+        destinations = [agent for agent in self.model.agents if isinstance(agent, Destination)]
+        
+        if destinations:
+            return random.choice(destinations)
+        return None
+    
+    def pathToDestination(self):
+        """Initialize destination and calculate path using A*."""
+        if self.destination is None:
+            self.destination = self.assignRandomDestination()
+            if self.destination:
+                self.path = self.a_star(self.cell.coordinate, self.destination.cell.coordinate)
+                self.path_index = 0
+
+    def getNextReturnStep(self):
+        """Get the next step to return to the station using A* algorithm."""
+        if not self.path:
+            self.pathToDestination() # Calculate path if not already done
+
+        if self.path:
+            next_coord = self.path.pop(0) # Get next coordinate in path and remove it from the list
+            next_cell = self.model.grid[next_coord]
+            self.state = "moving"  #change state to moving when path exists
+            return next_cell
+        else:
+            self.state = "idle"  #change state to idle if no path to destination
+            return None
 
     def step(self):
         """
         Executes one step of the car's behavior.
         
         Possible states:
-        - idle: Initial state, ready to move
+        - idle: Initial state, ready to move 
         - waitingCar: Waiting for the car ahead to move
         - waitingTL: Waiting at the traffic light
         - moving: Moving to the next cell
         """
+        
+        # Safety check: if cell is None, skip this step
+        if self.cell is None:
+            return
 
         # Check current state and decide next action
         if self.state == "idle":
             # Check what's ahead
             next_cell = self.checkCars()
 
-            # If state is moving, move
+            # If state is now "moving", execute the move
             if self.state == "moving" and next_cell:
+                next_cell = self.getNextReturnStep()
                 self.move(next_cell)
                 self.state = "idle"
         
@@ -52,8 +92,6 @@ class CarAgent(CellAgent):
                 self.move(next_cell)
                 self.state = "idle"
     
-
-
     def getNextCell(self):
         """Gets the next cell to move to based on current position."""
         
@@ -150,10 +188,132 @@ class CarAgent(CellAgent):
             # Traffic light is green, can move
             self.state = "moving"
             return next_cell
+        
+    def a_star(self, start, goal):
+        """
+        A* pathfinding algorithm adapted for the grid in the model
+
+        This algorithm was adapted from the one made in the advanced algorithm class
+        with Lizbeth Peralta. Made by Diego Cordova, Aquiba Benarroch and me.
+        """
+
+        # Calculate Manhattan distance
+        # We have to estimate heuristic using this distance
+        # since it is not given from the model
+        # Ref: https://www.geeksforgeeks.org/dsa/a-search-algorithm/
+        def heuristic(a, b):
+            return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+        def getNeighborsDirections(current_coord):
+            current_cell = self.model.grid[current_coord]
+            valid_neighbors = []
+
+            current_road  = None
+            for agent in current_cell.agents:
+                if isinstance(agent, Road):
+                    current_road = agent
+                    break
+
+            if current_road is None:
+                return []
+            
+            direction = current_road.direction
+            x, y = current_coord
+
+            next_coords = []
+            if direction == "Up":
+                next_coords.append((x, y + 1))
+            elif direction == "Down":
+                next_coords.append((x, y - 1))
+            elif direction == "Left":
+                next_coords.append((x - 1, y))
+            elif direction == "Right":
+                next_coords.append((x + 1, y))
+
+            for coord in next_coords:
+                if coord not in self.model.grid:
+                    continue
+
+                neighbor_cell = self.model.grid[coord]
+
+
+                # Check if neighbor cell is valid (not an obstacle)
+                has_road = any(isinstance(agent, Road) for agent in neighbor_cell.agents)
+                has_obstacle = any(isinstance(agent, Obstacle) for agent in neighbor_cell.agents)
+
+                if has_road and not has_obstacle:
+                    valid_neighbors.append(coord)
+
+            return valid_neighbors
+
+            
+        # Initialize variables
+        grid = self.model.grid
+        stack = [] # Stack of nodes to explore
+        c_list = {}  # g values
+        visited = set()  # visited nodes
+
+        # Father vector to reconstruct path
+        fathers = {}
+
+        # Initialize stack with start node
+        # Heap already sorts by smallest f value
+        heapq.heappush(stack, (0, start))
+        c_list[start] = 0
+
+        # While the stack is not empty
+        # Explore neighbors with lowest f value
+        while len(stack) > 0:
+            
+            # Get node with lowest f value
+            # This returns f, coordinate
+            # but we only need coordinate, so we use _
+            _, current = heapq.heappop(stack)
+
+            # If the node hasnt been visited, process it
+            if current not in visited:
+
+                # Mark as visited
+                visited.add(current)
+
+                # If we reached the goal, finish
+                if (current == goal):
+                    break
+
+                # Get valid neighbors based on road directions
+                valid_neighbors = getNeighborsDirections(current)
+
+                # Explore neighbors
+                # Get valid neighbors (not obstacles)       
+                for neighbor in valid_neighbors:
+                    actual_coordinate = c_list[current] + 1 # Cost between nodes is 1
+
+                    if actual_coordinate < c_list.get(neighbor, float('inf')):
+                        c_list[neighbor] = actual_coordinate
+                        fathers[neighbor] = current
+                        f_value = actual_coordinate + heuristic(neighbor, goal)
+
+                        # Add to stack
+                        heapq.heappush(stack, (f_value, neighbor))
+
+
+        # Reconstruct path
+        if goal in fathers:
+            path = []
+            current = goal
+            while current != start:
+                path.append(current)
+                current = fathers[current]
+            path.reverse()
+            return path
+        
+        # If no path found, return empty list
+        return []
     
     def move(self, next_cell):
         """Moves the agent to the next cell."""
-        self.cell = next_cell
+        if next_cell is not None:
+            self.cell = next_cell
 
 class Ambulance(CellAgent):
     """
