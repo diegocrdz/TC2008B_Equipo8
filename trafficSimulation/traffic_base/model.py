@@ -43,6 +43,8 @@ class CityModel(Model):
                         agent = Road(self, cell, dataDictionary[col])
 
                     elif col in ["S", "s"]:
+                        # First create the Road agent below the traffic light
+                        road_agent = Road(self, cell, dataDictionary[">"])
                         agent = Traffic_Light(
                             self,
                             cell,
@@ -52,6 +54,7 @@ class CityModel(Model):
                         self.traffic_lights.append(agent)
 
                     elif col == "#":
+                        road_agent = Road(self, cell, dataDictionary[">"])
                         agent = Obstacle(self, cell)
 
                     elif col == "D":
@@ -63,7 +66,7 @@ class CityModel(Model):
                         road_agent = Road(self, cell, dataDictionary[">"]) 
                         agent = CarAgent(self, cell)
 
-                        
+
         self.running = True
 
     def step(self):
