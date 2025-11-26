@@ -1,4 +1,4 @@
-from mesa.discrete_space import CellAgent, FixedAgent
+from mesa.discrete_space import CellAgent, FixedAgent, HexGrid
 import random
 
 class CarAgent(CellAgent):
@@ -122,43 +122,119 @@ class CarAgent(CellAgent):
     
     def checkAmbulance(self):
         """Chooses the next cell based on the state of ambulances."""
-        
-        neighbors = self.cell.neighborhood
+        # This method was obtained from Mesa API Documentation
+        # https://mesa.readthedocs.io/latest/apis/discrete_space.html#mesa.discrete_space.__init__.OrthogonalMooreGrid
+        neighbor_cells = self.cell.get_neighborhood(
+            radius=4,
+            include_center=False
+
+        )
         ambulance_nearby = False
     
-        for neighbor_cell in neighbors:
+        for neighbor_cell in neighbor_cells:
             ambulance = next(
                 (obj for obj in neighbor_cell.agents if isinstance(obj, Ambulance)), None
             )
         
             if ambulance and ambulance.state == "emergency":
                 ambulance_nearby = True
-                # If there's an ambulance in emergency state nearby and we haven't we need to let him pass
+                # If there's an ambulance in emergency state nearby and we haven't moved yet
                 if not self.moved_for_ambulance:
-                    valid_neighbors = self.cell.neighborhood.select(
-                        lambda cell: any(isinstance(obj, Road) for obj in cell.agents) and 
-                        not any(isinstance(obj, Obstacle) 
-                        or isinstance(obj, Ambulance) 
-                        or isinstance (obj, Traffic_Light) 
-                        or isinstance(obj, CarAgent) for obj in cell.agents)
-                    ) 
-                    if valid_neighbors:
-                        new_cell = random.choice(list(valid_neighbors))
-                        self.move(new_cell)
-                        self.state = "idle"
-                        self.moved_for_ambulance = True
-                        return None  # Already moved
+                    # Get diagonal cells based on the actual direction of the car
+                    diagonal_cells = self.get_diagonal_cells()
+                    
+                    if diagonal_cells:
+                        # Filter valid cells (with road, without obstacles/cars/ambulances)
+                        valid_neighbors = []
+                        for cell in diagonal_cells:
+                            # Must have road
+                            has_road = any(isinstance(obj, Road) for obj in cell.agents)
+                            if not has_road:
+                                continue
+                            
+                            # Cannot have obstacles, cars, or ambulances
+                            has_obstacle = any(isinstance(obj, Obstacle) for obj in cell.agents)
+                            has_car = any(isinstance(obj, CarAgent) for obj in cell.agents)
+                            has_ambulance_obj = any(isinstance(obj, Ambulance) for obj in cell.agents)
+                            
+                            if has_obstacle or has_car or has_ambulance_obj:
+                                continue
+                            
+                            # Check traffic light
+                            traffic_light = next(
+                                (obj for obj in cell.agents if isinstance(obj, Traffic_Light)), None
+                            )
+                            
+                            if traffic_light:
+                                # If traffic light is red we can't move there we skip it
+                                if not traffic_light.is_green:
+                                    continue
+                                # If green we can use this cell
+                            
+                            # Cell is valid
+                            valid_neighbors.append(cell)
+                        
+                        if valid_neighbors:
+                            new_cell = random.choice(valid_neighbors)
+                            self.move(new_cell)
+                            self.state = "idle"
+                            self.moved_for_ambulance = True
+                            return None  # Already moved, stay in place
+                    # If no valid diagonal cells do nothing
+                    return None
                 else:
-                    # Already moved for ambulance
+                    # Already moved for ambulance, stay until it passes
                     return None
         
-        # No ambulance nearby, reset flag to false
+        # No ambulance nearby reset flag to false
         if not ambulance_nearby:
             self.moved_for_ambulance = False
         
         # No ambulance in emergency nearby continue
         return self.getNextCell()   
         
+
+    def get_diagonal_cells(self):
+        """Get diagonal neighboring cells based on the car's last movement."""
+
+        x, y = self.cell.coordinate
+        diagonal_coords = []
+        
+        # Get direction
+        direction = self.lastDirection
+        if direction is None:
+            # If we don't have a direction yet, get it from the current road
+            for agent in self.cell.agents:
+                if isinstance(agent, Road):
+                    direction = agent.direction
+                    break
+
+        if direction == "Up":
+            diagonal_coords = [(x - 1, y + 1), (x + 1, y + 1)] # Up left and right
+        elif direction == "Down":
+            diagonal_coords = [(x - 1, y - 1), (x + 1, y - 1)] # Down left and right
+        elif direction == "Right":
+            diagonal_coords = [(x + 1, y + 1), (x + 1, y - 1)] # Right up and down
+        elif direction == "Left":
+            diagonal_coords = [(x - 1, y - 1), (x - 1, y + 1)] # Left up and down
+
+        # Get grid dimensions
+        grid_width = self.model.grid.width
+        grid_height = self.model.grid.height
+
+        diagonal_cells = []
+        for coord in diagonal_coords:
+            coord_x, coord_y = coord
+            # Check if coordinate is within grid bounds
+            if coord_x < 0 or coord_y < 0 or coord_x >= grid_width or coord_y >= grid_height:
+                # Coordinate is out of bounds we skip it
+                continue
+            
+            # Coordinate is valid get the cell
+            cell = self.model.grid[coord]
+            diagonal_cells.append(cell)
+
+        return diagonal_cells
 
     def checkCars(self):
         """Chooses the next cell based on the presence of cars."""
@@ -189,6 +265,14 @@ class CarAgent(CellAgent):
     
     def checkTL(self, next_cell):
         """Chooses the next cell based on the state of the traffic light."""
+
+        actual_traffic_light = next(
+            (obj for obj in self.cell.agents if isinstance(obj, Traffic_Light)), None
+        )
+        if actual_traffic_light and not actual_traffic_light.is_green:
+            self.state = "waitingTL"
+            return None
+
         # Check if the traffic light is green
         traffic_light = next(
             (obj for obj in next_cell.agents if isinstance(obj, Traffic_Light)), None
@@ -412,6 +496,17 @@ class Ambulance(CellAgent):
     
     def checkTL(self, next_cell):
         """Chooses the next cell based on the state of the traffic light."""
+
+        current = self.cell
+        # Chek the actual cell traffic light first
+        current_traffic_light = next(
+            (obj for obj in self.cell.agents if isinstance(obj, Traffic_Light)), None
+        )
+
+        if current_traffic_light and not current_traffic_light.is_green:
+            self.state = "waitingTL"
+            return None
+                
         # Check if the traffic light is green
         traffic_light = next(
             (obj for obj in next_cell.agents if isinstance(obj, Traffic_Light)), None
