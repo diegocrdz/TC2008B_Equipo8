@@ -29,6 +29,13 @@ class CarAgent(CellAgent):
         - moving: Moving to the next cell
         """
 
+        # First check if we are inside a traffic light cell
+        current_traffic_light = next(
+            (obj for obj in self.cell.agents if isinstance(obj, Traffic_Light)), None
+        )
+        if current_traffic_light and not current_traffic_light.is_green:
+            self.state = "waitingTL"
+            return
         # Check current state and decide next action
         if self.state == "idle":
             # Check what's ahead
@@ -265,14 +272,6 @@ class CarAgent(CellAgent):
     
     def checkTL(self, next_cell):
         """Chooses the next cell based on the state of the traffic light."""
-
-        actual_traffic_light = next(
-            (obj for obj in self.cell.agents if isinstance(obj, Traffic_Light)), None
-        )
-        if actual_traffic_light and not actual_traffic_light.is_green:
-            self.state = "waitingTL"
-            return None
-
         # Check if the traffic light is green
         traffic_light = next(
             (obj for obj in next_cell.agents if isinstance(obj, Traffic_Light)), None
