@@ -307,15 +307,24 @@ class CarAgent(CellAgent):
         self.cell = next_cell
     
     def crash(self):
-        """If an ambulance crashes with a car or another ambulance, both are removed from the simulation."""
+        """If a car crashes with another car or ambulance, we remove them."""
         actual_cell = self.cell
+        agents_to_remove = []
+        
         for agent in actual_cell.agents:
-            # If the agent in the cell is another car or ambulance, and the agent is in the same cell
-            if isinstance(agent, CarAgent) or (isinstance(agent, Ambulance) and agent != self):
-                # Remove both agents from the model
-                self.model.grid.remove_agent(self)
-                self.model.grid.remove_agent(agent)
-                break
+            # If the agent in the cell is another car or ambulance
+            if isinstance(agent, CarAgent) and agent != self:
+                agents_to_remove.append(agent)
+            elif isinstance(agent, Ambulance):
+                agents_to_remove.append(agent)
+        
+        # If the car crashed with other cars or ambulances, add this car too
+        if agents_to_remove:
+            agents_to_remove.append(self)
+        
+        # Remove all agents in the list
+        for agent in agents_to_remove:
+            self.model.grid.remove_agent(agent)
 
 class Ambulance(CellAgent):
     """
@@ -703,15 +712,24 @@ class Ambulance(CellAgent):
         self.cell = next_cell
     
     def crash(self):
-        """If an ambulance crashes with a car or another ambulance, both are removed from the simulation."""
+        """If an ambulance crashes with a car or another ambulance, we remove them."""
         actual_cell = self.cell
+        agents_to_remove = []
+        
         for agent in actual_cell.agents:
-            # If the agent in the cell is another car or ambulance, and the agent is in the same cell
-            if isinstance(agent, CarAgent) or (isinstance(agent, Ambulance) and agent != self):
-                # Remove both agents from the model
-                self.model.grid.remove_agent(self)
-                self.model.grid.remove_agent(agent)
-                break
+            # If the agent in the cell is a car or another ambulance
+            if isinstance(agent, CarAgent):
+                agents_to_remove.append(agent)
+            elif isinstance(agent, Ambulance) and agent != self:
+                agents_to_remove.append(agent)
+        
+        # If there are collisions with cars or ambulances, add this ambulance too
+        if agents_to_remove:
+            agents_to_remove.append(self)
+        
+        # Remove all agents in the list
+        for agent in agents_to_remove:
+            self.model.grid.remove_agent(agent)
 
     @property
     def has_emergency(self):
