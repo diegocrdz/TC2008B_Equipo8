@@ -27,9 +27,9 @@ export function getRotationFromDirection(direction) {
     case "Left":
       return -Math.PI / 2; // 270 degrees
     case "Up":
-      return Math.PI; // 180 degrees
-    case "Down":
       return 0; // 0 degrees
+    case "Down":
+      return Math.PI; // 180 degrees
     default:
       return 0;
   }

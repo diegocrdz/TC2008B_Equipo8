@@ -112,7 +112,7 @@ async function getAgents() {
  */
 async function getAmbulances() {
     try {
-        // Send a GET request to the agent server to retrieve the ambulance positions
+        // Send a GET request to the agent server to retrieve the agent positions
         let response = await fetch(agent_server_uri + "getAmbulances");
 
         // Check if the response was successful
@@ -120,12 +120,32 @@ async function getAmbulances() {
             // Parse the response as JSON
             let result = await response.json();
 
-            // Create new ambulances and add them to the ambulances array
-            for (const ambulance of result.positions) {
-                const newAmbulance = new Object3D(ambulance.id, [ambulance.x, ambulance.y, ambulance.z]);
-                // Store the direction
-                newAmbulance['direction'] = ambulance.direction;
-                ambulances.push(newAmbulance);
+            // Check if the ambulances array is empty
+            if (ambulances.length == 0) {
+                // Create new ambulances and add them to the ambulances array
+                for (const agent of result.positions) {
+                    const newAgent = new Object3D(agent.id, [agent.x, agent.y, agent.z]);
+                    // Store the initial position
+                    newAgent['oldPosArray'] = newAgent.posArray;
+                    // Store the direction
+                    newAgent['direction'] = agent.direction;
+                    ambulances.push(newAgent);
+                }
+
+            } else {
+                // Update the positions of existing ambulances
+                for (const agent of result.positions) {
+                    const current_ambulance = ambulances.find((object3d) => object3d.id == agent.id);
+
+                    // Check if the ambulance exists in the ambulances array
+                    if(current_ambulance != undefined){
+                        // Update the ambulance's position
+                        current_ambulance.oldPosArray = current_ambulance.posArray;
+                        current_ambulance.position = {x: agent.x, y: agent.y, z: agent.z};
+                        // Update the direction
+                        current_ambulance.direction = agent.direction;
+                    }
+                }
             }
         }
 
@@ -396,6 +416,7 @@ async function update() {
         if (response.ok) {
             // Retrieve the updated agent positions
             await getAgents();
+            await getAmbulances();
             await getTrafficLights();
             // Log a message indicating that the agents have been updated
             //console.log("Updated agents");

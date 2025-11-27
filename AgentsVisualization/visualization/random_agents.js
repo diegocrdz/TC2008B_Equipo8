@@ -61,7 +61,7 @@ const scene = new Scene3D();
 // Global variables
 let textureProgramInfo = undefined;
 let gl = undefined;
-const duration = 500; // ms
+const duration = 200; // ms
 let elapsed = 0;
 let then = 0;
 const NUM_LIGHTS = 10;

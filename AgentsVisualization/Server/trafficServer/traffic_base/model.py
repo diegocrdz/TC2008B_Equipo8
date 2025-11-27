@@ -38,6 +38,7 @@ class CityModel(Model):
         self.hospitals = []
         self.destinations = []
         self.sidewalks = []
+        self.ambulances = []
 
         # Load the map file. The map file is a text file where each character represents an agent.
         with open("city_files/2022_base.txt") as baseFile:
@@ -110,10 +111,19 @@ class CityModel(Model):
                     
                     elif col == "C":
                         # First create the Road agent below the car
-                        # We use a default direction because in the map, the car is represented by 'C' and there is no direction info.
+                        # We check for the direction, the car is represented by 'C' and there is no direction info.
                         road_agent = Road(self, cell, dataDictionary[">"]) 
                         agent = CarAgent(self, cell)
                         self.cars.append(agent)
+                        self.roads.append(road_agent)
+
+                    elif col == "A":
+                        # First create the Road agent below the ambulance
+                        # We use a default direction because in the map, the ambulance is represented by 'A' and there is no direction info.
+                        road_agent = Road(self, cell, dataDictionary["v"]) 
+                        agent = Ambulance(self, cell)
+                        self.ambulances.append(agent)
+                        self.roads.append(road_agent)
 
         self.running = True
 

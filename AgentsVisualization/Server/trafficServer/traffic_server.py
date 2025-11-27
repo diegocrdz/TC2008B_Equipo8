@@ -105,13 +105,12 @@ def getAmbulances():
             )
             # print(f"CELLS: {agentCells}")
 
-            agents = [
+            ambulances = [
                 (cell.coordinate, agent)
                 for cell in ambulanceCells
                 for agent in cell.agents
                 if isinstance(agent, Ambulance)
             ]
-            # print(f"AGENTS: {agents}")
 
             ambulancePositions = [
                 {
@@ -121,9 +120,8 @@ def getAmbulances():
                     "z": coordinate[1],
                     "direction": next((road.direction for road in randomModel.grid[coordinate].agents if isinstance(road, Road)), None),
                 }
-                for (coordinate, a) in agents
+                for (coordinate, a) in ambulances
             ]
-            # print(f"AMBULANCE POSITIONS: {ambulancePositions}")
 
             return jsonify({'positions': ambulancePositions})
         except Exception as e:
