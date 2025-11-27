@@ -171,25 +171,30 @@ class CarAgent(CellAgent):
                         for cell in diagonal_cells:
                             # Must have road
                             has_road = any(isinstance(obj, Road) for obj in cell.agents)
-                            if has_road:
-                                # Cannot have obstacles, cars, or ambulances
-                                has_obstacle = any(isinstance(obj, Obstacle) for obj in cell.agents)
-                                has_car = any(isinstance(obj, CarAgent) for obj in cell.agents)
-                                has_ambulance_obj = any(isinstance(obj, Ambulance) for obj in cell.agents)
-                                
-                                if not (has_obstacle or has_car or has_ambulance_obj):
-                                    # Check traffic light
-                                    traffic_light = next(
-                                        (obj for obj in cell.agents if isinstance(obj, Traffic_Light)), None
-                                    )
-                                    
-                                    if traffic_light:
-                                        # If traffic light is green we can use this cell
-                                        if traffic_light.is_green:
-                                            valid_neighbors.append(cell)
-                                    else:
-                                        # No traffic light, cell is valid
-                                        valid_neighbors.append(cell)
+                            if not has_road:
+                                # Since we want to append the valid cells only, if there is no road it's invalid, so we skip it
+                                continue
+                            
+                            # Cannot have obstacles, cars, or ambulances
+                            has_obstacle = any(isinstance(obj, Obstacle) for obj in cell.agents)
+                            has_car = any(isinstance(obj, CarAgent) for obj in cell.agents)
+                            has_ambulance_obj = any(isinstance(obj, Ambulance) for obj in cell.agents)
+                            
+                            if has_obstacle or has_car or has_ambulance_obj:
+                                # Since we want to append the valid cells only, if there is any of these it's invalid, so we skip it
+                                continue
+                            
+                            # Check traffic light
+                            traffic_light = next(
+                                (obj for obj in cell.agents if isinstance(obj, Traffic_Light)), None
+                            )
+                            
+                            if traffic_light and not traffic_light.is_green:
+                                # Since we want to append the valid cells only, if the light is red it's invalid, so we skip it
+                                continue
+                            
+                            # Cell is valid
+                            valid_neighbors.append(cell)
                         
                         if valid_neighbors:
                             new_cell = random.choice(valid_neighbors)
@@ -624,15 +629,21 @@ class Ambulance(CellAgent):
                 for cell in diagonal_cells:
                     # Must have road
                     has_road = any(isinstance(obj, Road) for obj in cell.agents)
-                    if has_road:
-                        # Cannot have obstacles, cars, or ambulances
-                        has_obstacle = any(isinstance(obj, Obstacle) for obj in cell.agents)
-                        has_car = any(isinstance(obj, CarAgent) for obj in cell.agents)
-                        has_ambulance_obj = any(isinstance(obj, Ambulance) for obj in cell.agents)
-                        
-                        if not (has_obstacle or has_car or has_ambulance_obj):
-                            # Cell is valid
-                            valid_neighbors.append(cell)
+                    if not has_road:
+                        # Since we want to append the valid cells only, if there is no road it's invalid, so we skip it
+                        continue
+                    
+                    # Cannot have obstacles, cars, or ambulances
+                    has_obstacle = any(isinstance(obj, Obstacle) for obj in cell.agents)
+                    has_car = any(isinstance(obj, CarAgent) for obj in cell.agents)
+                    has_ambulance_obj = any(isinstance(obj, Ambulance) for obj in cell.agents)
+                    
+                    if has_obstacle or has_car or has_ambulance_obj:
+                        # Since we want to append the valid cells only, if there is any of these it's invalid, so we skip it
+                        continue
+                    
+                    # Cell is valid
+                    valid_neighbors.append(cell)
                 
                 # Move to a random valid diagonal cell if available
                 if valid_neighbors:
