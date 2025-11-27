@@ -23,9 +23,13 @@ class CityModel(Model):
         seed: Random seed for the model
     """
 
-    def __init__(self, N, seed=42):
+    def __init__(self, N, seed=42, car_spawn_rate=5, vehicles_per_step=4, ambulance_per_step=1):
 
         super().__init__(seed=seed)
+
+        self.car_spawn_rate = car_spawn_rate
+        self.vehicles_per_step = vehicles_per_step
+        self.ambulance_per_step = ambulance_per_step
 
         # Load the map dictionary. The dictionary maps the characters in the map file to the corresponding agent.
         dataDictionary = json.load(open("city_files/mapDictionary.json"))
@@ -40,9 +44,14 @@ class CityModel(Model):
         self.sidewalks = []
         self.ambulances = []
 
+        # Counters to keep track of spawned vehicles
+        self.car_spawned_count = 0
+        self.ambulance_spawned_count = 0
+
         # Load the map file. The map file is a text file where each character represents an agent.
         with open("city_files/2022_base.txt") as baseFile:
             lines = baseFile.readlines()
+            lines = [line.strip() for line in lines if line.strip()]
             self.width = len(lines[0])
             self.height = len(lines)
 
