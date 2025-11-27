@@ -153,7 +153,13 @@ class CarAgent(CellAgent):
         
             if ambulance and ambulance.state == "emergency":
                 ambulance_nearby = True
-                # If there's an ambulance in emergency state nearby and we haven't moved yet
+                # Check if the ambulance already moved diagonally this step
+                # This method was obtained from Geekforgeeks
+                # https://www.geeksforgeeks.org/python/python-hasattr-method/
+                if hasattr(ambulance, 'moved_diagonally') and ambulance.moved_diagonally:
+                    # Ambulance has already moved on its own, stay in place to avoid crashing or blocking 
+                    return None
+                # Otherwise, if there's an ambulance in emergency state nearby and we haven't moved yet
                 if not self.moved_for_ambulance:
                     # Get diagonal cells based on the actual direction of the car
                     diagonal_cells = self.get_diagonal_cells()
@@ -165,6 +171,7 @@ class CarAgent(CellAgent):
                             # Must have road
                             has_road = any(isinstance(obj, Road) for obj in cell.agents)
                             if not has_road:
+                                # Since we want to append the valid cells only, if there is no road it's invalid, so we skip it
                                 continue
                             
                             # Cannot have obstacles, cars, or ambulances
@@ -173,6 +180,7 @@ class CarAgent(CellAgent):
                             has_ambulance_obj = any(isinstance(obj, Ambulance) for obj in cell.agents)
                             
                             if has_obstacle or has_car or has_ambulance_obj:
+                                # Since we want to append the valid cells only, if there is any of these it's invalid, so we skip it
                                 continue
                             
                             # Check traffic light
@@ -183,6 +191,7 @@ class CarAgent(CellAgent):
                             if traffic_light:
                                 # If traffic light is red we can't move there we skip it
                                 if not traffic_light.is_green:
+                                    # Since we want to append the valid cells only, if the light is red it's invalid, so we skip it
                                     continue
                                 # If green we can use this cell
                             
@@ -314,6 +323,7 @@ class Ambulance(CellAgent):
         self.state = "emergency" if self._has_emergency else "idle"  # Initial state
         self.lastDirection = None  # To keep track of last movement direction
         self.moved_for_ambulance = False  # Track if already moved to let ambulance pass
+        self.moved_diagonally = False  # Track if ambulance moved diagonally this step
         print(f"ID: {self.unique_id} Ambulance state: {self.state}")
 
     def step(self):
@@ -328,17 +338,20 @@ class Ambulance(CellAgent):
         - emergency: Moving regardless of traffic rules
         """
 
-        # If the ambulance is on emergency, move without checking traffic lights
-        # Checks for obstacles and cars only
+        # REset the flag at each step
+        self.moved_diagonally = False
+
+        # If the ambulance is on emergency, move without checking traffic lights, only cars, obstacles, or ambulances (not in emergency state)
         if self.state == "emergency":
+            # If there is a car in front, the ambulance checks for his state and tries to move diagonally
+            if self.inEmergency():
+                self.moved_diagonally = True
+                return
+            
+            # If inEmergency returned False it means that there was no car in front, so we can move normally
             next_cell = self.getNextCell()
             if next_cell:
-                # Check if there's a car or ambulance blocking
-                has_car = any(isinstance(agent, CarAgent) for agent in next_cell.agents)
-                has_ambulance = any(isinstance(agent, Ambulance) for agent in next_cell.agents)
-                
-                if not has_car and not has_ambulance:
-                    self.move(next_cell)
+                self.move(next_cell)
             return
 
         # If the ambulance is not on emergency, first check if we are inside a traffic light cell
@@ -460,6 +473,12 @@ class Ambulance(CellAgent):
         
             if ambulance and ambulance.state == "emergency":
                 ambulance_nearby = True
+                # Check if the ambulance already moved diagonally this step
+                # This method was obtained from Geekforgeeks
+                # https://www.geeksforgeeks.org/python/python-hasattr-method/
+                if hasattr(ambulance, 'moved_diagonally') and ambulance.moved_diagonally:
+                    # Ambulance moved on its own, don't move to avoid blocking it
+                    return None
                 # If there's an ambulance in emergency state nearby and we haven't moved yet
                 if not self.moved_for_ambulance:
                     # Get diagonal cells based on the actual direction of the car
@@ -472,6 +491,7 @@ class Ambulance(CellAgent):
                             # Must have road
                             has_road = any(isinstance(obj, Road) for obj in cell.agents)
                             if not has_road:
+                                # Since we want to append the valid cells only, if there is no road it's invalid, so we skip it
                                 continue
                             
                             # Cannot have obstacles, cars, or ambulances
@@ -480,6 +500,7 @@ class Ambulance(CellAgent):
                             has_ambulance_obj = any(isinstance(obj, Ambulance) for obj in cell.agents)
                             
                             if has_obstacle or has_car or has_ambulance_obj:
+                                # Since we want to append the valid cells only, if there is any of these it's invalid, so we skip it
                                 continue
                             
                             # Check traffic light
@@ -490,6 +511,7 @@ class Ambulance(CellAgent):
                             if traffic_light:
                                 # If traffic light is red we can't move there we skip it
                                 if not traffic_light.is_green:
+                                    # Since we want to append the valid cells only, if the light is red it's invalid, so we skip it
                                     continue
                                 # If green we can use this cell
                             
@@ -556,6 +578,59 @@ class Ambulance(CellAgent):
             diagonal_cells.append(cell)
 
         return diagonal_cells
+    
+    def inEmergency(self):
+        """If the ambulance is in emergency, and there's a car waiting directly in front, the ambulance moves diagonally to pass."""
+        # Get the cell directly in front based on direction
+        next_cell = self.getNextCell()
+        
+        if next_cell is None:
+            return False
+        
+        # Check if there's a car or ambulance waiting directly in front
+        car_waiting_in_front = False
+        for agent in next_cell.agents:
+            if isinstance(agent, CarAgent) or isinstance(agent, Ambulance):
+                # Check if car or ambulance are waiting
+                # This method was obtained from Geekforgeeks
+                # https://www.geeksforgeeks.org/python/python-hasattr-method/
+                if hasattr(agent, 'state') and agent.state in ["waitingCar", "waitingTL"]:
+                    car_waiting_in_front = True
+                    break
+        
+        # Only move diagonally if there's a car or ambulance waiting directly in front
+        if car_waiting_in_front:
+            diagonal_cells = self.get_diagonal_cells()
+            
+            if diagonal_cells:
+                # Filter valid diagonal cells
+                valid_neighbors = []
+                for cell in diagonal_cells:
+                    # Must have road
+                    has_road = any(isinstance(obj, Road) for obj in cell.agents)
+                    if not has_road:
+                        # Since we want to append the valid cells only, if there is no road it's invalid, so we skip it
+                        continue
+                    
+                    # Cannot have obstacles, cars, or ambulances
+                    has_obstacle = any(isinstance(obj, Obstacle) for obj in cell.agents)
+                    has_car = any(isinstance(obj, CarAgent) for obj in cell.agents)
+                    has_ambulance_obj = any(isinstance(obj, Ambulance) for obj in cell.agents)
+                    
+                    if has_obstacle or has_car or has_ambulance_obj:
+                        # Since we want to append the valid cells only, if there is any of these it's invalid, so we skip it
+                        continue
+                    
+                    # Cell is valid
+                    valid_neighbors.append(cell)
+                
+                # Move to a random valid diagonal cell if available
+                if valid_neighbors:
+                    new_cell = random.choice(valid_neighbors)
+                    self.move(new_cell)
+                    return True
+        
+        return False
 
     def checkCars(self):
         """Chooses the next cell based on the presence of cars."""
