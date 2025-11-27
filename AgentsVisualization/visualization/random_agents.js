@@ -52,6 +52,7 @@ import {
 import {
   createTexture,
   getRotationFromDirection,
+  getLightsCloseToCamera,
 } from './utils.js';
 
 // Create the 3D scene
@@ -63,6 +64,7 @@ let gl = undefined;
 const duration = 500; // ms
 let elapsed = 0;
 let then = 0;
+const NUM_LIGHTS = 10;
 
 // Global textures for traffic lights
 let greenTexture = undefined;
@@ -704,25 +706,30 @@ async function drawScene() {
   const viewProjectionMatrix = setupViewProjection(gl);
 
   // Texture shader
-  // Setup light arrays
+
+  // Get closest lights to camera
+  const closeLights = getLightsCloseToCamera(NUM_LIGHTS, scene);
+
+  // Prepare light arrays
   let lightPositions = [];
   let diffuseLights = [];
   let specularLights = [];
 
   // Add all scene lights
-  for (let i = 0; i < scene.lights.length; i++) {
-    const pos = scene.lights[i].posArray;
+  for (let i = 0; i < closeLights.length; i++) {
+    // Get current light
+    const light = closeLights[i];
 
     // Add light properties to arrays
-    lightPositions.push(...pos);
-    diffuseLights.push(...scene.lights[i].diffuse);
-    specularLights.push(...scene.lights[i].specular);
+    lightPositions.push(...light.posArray);
+    diffuseLights.push(...light.diffuse);
+    specularLights.push(...light.specular);
   }
 
   let textureUniforms = {
     u_viewWorldPosition: scene.camera.posArray,
     u_lightWorldPosition: lightPositions,
-
+ 
     u_ambientLight: scene.lights[0].ambient,
     u_diffuseLight: diffuseLights,
     u_specularLight: specularLights,

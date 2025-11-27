@@ -47,7 +47,7 @@ void main() {
 
     for (int i=0; i<NUM_LIGHTS; i++) {
         // attenuation
-        float distance = length(u_lightWorldPosition[i] - v_position.xyz);
+        float distance = length(v_surfaceToLight[i]);
         float attenuation = 1.0 / (u_constant + u_linear * distance + u_quadratic * (distance * distance));
 
         vec3 surfToLigthDirection = normalize(v_surfaceToLight[i]);
