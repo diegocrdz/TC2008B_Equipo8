@@ -305,6 +305,17 @@ class CarAgent(CellAgent):
     def move(self, next_cell):
         """Moves the agent to the next cell."""
         self.cell = next_cell
+    
+    def crash(self):
+        """If an ambulance crashes with a car or another ambulance, both are removed from the simulation."""
+        actual_cell = self.cell
+        for agent in actual_cell.agents:
+            # If the agent in the cell is another car or ambulance, and the agent is in the same cell
+            if isinstance(agent, CarAgent) or (isinstance(agent, Ambulance) and agent != self):
+                # Remove both agents from the model
+                self.model.grid.remove_agent(self)
+                self.model.grid.remove_agent(agent)
+                break
 
 class Ambulance(CellAgent):
     """
@@ -690,6 +701,17 @@ class Ambulance(CellAgent):
     def move(self, next_cell):
         """Moves the agent to the next cell."""
         self.cell = next_cell
+    
+    def crash(self):
+        """If an ambulance crashes with a car or another ambulance, both are removed from the simulation."""
+        actual_cell = self.cell
+        for agent in actual_cell.agents:
+            # If the agent in the cell is another car or ambulance, and the agent is in the same cell
+            if isinstance(agent, CarAgent) or (isinstance(agent, Ambulance) and agent != self):
+                # Remove both agents from the model
+                self.model.grid.remove_agent(self)
+                self.model.grid.remove_agent(agent)
+                break
 
     @property
     def has_emergency(self):
