@@ -26,12 +26,14 @@ class CityModel(Model):
         # Load the map file. The map file is a text file where each character represents an agent.
         with open("city_files/2022_base.txt") as baseFile:
             lines = baseFile.readlines()
+            lines = [line.strip() for line in lines if line.strip()]
             self.width = len(lines[0])
             self.height = len(lines)
 
             self.grid = OrthogonalMooreGrid(
                 [self.width, self.height], capacity=100, torus=False
             )
+
 
             # Goes through each character in the map file and creates the corresponding agent.
             for r, row in enumerate(lines):
