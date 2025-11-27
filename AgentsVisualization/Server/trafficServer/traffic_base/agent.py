@@ -137,6 +137,7 @@ class CarAgent(CellAgent):
     
     def checkAmbulance(self):
         """Chooses the next cell based on the state of ambulances."""
+        # Continue statement from geeksforgeeks: https://www.geeksforgeeks.org/python/python-continue-statement/
         # This method was obtained from Mesa API Documentation
         # https://mesa.readthedocs.io/latest/apis/discrete_space.html#mesa.discrete_space.__init__.OrthogonalMooreGrid
         neighbor_cells = self.cell.get_neighborhood(
@@ -170,33 +171,25 @@ class CarAgent(CellAgent):
                         for cell in diagonal_cells:
                             # Must have road
                             has_road = any(isinstance(obj, Road) for obj in cell.agents)
-                            if not has_road:
-                                # Since we want to append the valid cells only, if there is no road it's invalid, so we skip it
-                                continue
-                            
-                            # Cannot have obstacles, cars, or ambulances
-                            has_obstacle = any(isinstance(obj, Obstacle) for obj in cell.agents)
-                            has_car = any(isinstance(obj, CarAgent) for obj in cell.agents)
-                            has_ambulance_obj = any(isinstance(obj, Ambulance) for obj in cell.agents)
-                            
-                            if has_obstacle or has_car or has_ambulance_obj:
-                                # Since we want to append the valid cells only, if there is any of these it's invalid, so we skip it
-                                continue
-                            
-                            # Check traffic light
-                            traffic_light = next(
-                                (obj for obj in cell.agents if isinstance(obj, Traffic_Light)), None
-                            )
-                            
-                            if traffic_light:
-                                # If traffic light is red we can't move there we skip it
-                                if not traffic_light.is_green:
-                                    # Since we want to append the valid cells only, if the light is red it's invalid, so we skip it
-                                    continue
-                                # If green we can use this cell
-                            
-                            # Cell is valid
-                            valid_neighbors.append(cell)
+                            if has_road:
+                                # Cannot have obstacles, cars, or ambulances
+                                has_obstacle = any(isinstance(obj, Obstacle) for obj in cell.agents)
+                                has_car = any(isinstance(obj, CarAgent) for obj in cell.agents)
+                                has_ambulance_obj = any(isinstance(obj, Ambulance) for obj in cell.agents)
+                                
+                                if not (has_obstacle or has_car or has_ambulance_obj):
+                                    # Check traffic light
+                                    traffic_light = next(
+                                        (obj for obj in cell.agents if isinstance(obj, Traffic_Light)), None
+                                    )
+                                    
+                                    if traffic_light:
+                                        # If traffic light is green we can use this cell
+                                        if traffic_light.is_green:
+                                            valid_neighbors.append(cell)
+                                    else:
+                                        # No traffic light, cell is valid
+                                        valid_neighbors.append(cell)
                         
                         if valid_neighbors:
                             new_cell = random.choice(valid_neighbors)
@@ -214,11 +207,12 @@ class CarAgent(CellAgent):
         if not ambulance_nearby:
             self.moved_for_ambulance = False
         
-        # No ambulance in emergency nearby continue
+        # No ambulance in emergency nearby continue moving normally
         return self.getNextCell()   
         
     def get_diagonal_cells(self):
         """Get diagonal neighboring cells based on the car's last movement."""
+        # Continue statement from geeksforgeeks: https://www.geeksforgeeks.org/python/python-continue-statement/
 
         x, y = self.cell.coordinate
         diagonal_coords = []
@@ -477,6 +471,7 @@ class Ambulance(CellAgent):
 
     def checkAmbulance(self):
         """Chooses the next cell based on the state of ambulances."""
+        # Continue statement from geeksforgeeks: https://www.geeksforgeeks.org/python/python-continue-statement/
         # This method was obtained from Mesa API Documentation
         # https://mesa.readthedocs.io/latest/apis/discrete_space.html#mesa.discrete_space.__init__.OrthogonalMooreGrid
         neighbor_cells = self.cell.get_neighborhood(
@@ -554,11 +549,12 @@ class Ambulance(CellAgent):
         if not ambulance_nearby:
             self.moved_for_ambulance = False
         
-        # No ambulance in emergency nearby continue
+        # No ambulance in emergency nearby continue moving normally
         return self.getNextCell() 
 
     def get_diagonal_cells(self):
         """Get diagonal neighboring cells based on the car's last movement."""
+        # Continue statement from geeksforgeeks: https://www.geeksforgeeks.org/python/python-continue-statement/
 
         x, y = self.cell.coordinate
         diagonal_coords = []
@@ -628,21 +624,15 @@ class Ambulance(CellAgent):
                 for cell in diagonal_cells:
                     # Must have road
                     has_road = any(isinstance(obj, Road) for obj in cell.agents)
-                    if not has_road:
-                        # Since we want to append the valid cells only, if there is no road it's invalid, so we skip it
-                        continue
-                    
-                    # Cannot have obstacles, cars, or ambulances
-                    has_obstacle = any(isinstance(obj, Obstacle) for obj in cell.agents)
-                    has_car = any(isinstance(obj, CarAgent) for obj in cell.agents)
-                    has_ambulance_obj = any(isinstance(obj, Ambulance) for obj in cell.agents)
-                    
-                    if has_obstacle or has_car or has_ambulance_obj:
-                        # Since we want to append the valid cells only, if there is any of these it's invalid, so we skip it
-                        continue
-                    
-                    # Cell is valid
-                    valid_neighbors.append(cell)
+                    if has_road:
+                        # Cannot have obstacles, cars, or ambulances
+                        has_obstacle = any(isinstance(obj, Obstacle) for obj in cell.agents)
+                        has_car = any(isinstance(obj, CarAgent) for obj in cell.agents)
+                        has_ambulance_obj = any(isinstance(obj, Ambulance) for obj in cell.agents)
+                        
+                        if not (has_obstacle or has_car or has_ambulance_obj):
+                            # Cell is valid
+                            valid_neighbors.append(cell)
                 
                 # Move to a random valid diagonal cell if available
                 if valid_neighbors:
