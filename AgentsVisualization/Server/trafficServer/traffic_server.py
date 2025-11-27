@@ -1,6 +1,12 @@
-# TC2008B. Sistemas Multiagentes y Gráficas Computacionales
-# Python flask server to interact with Unity. Based on the code provided by Sergio Ruiz.
-# Octavio Navarro. October 2023 
+"""
+Python flask server for traffic simulation visualization.
+
+Diego Córdova Rodríguez
+Lorena Estefanía Chewtat Torres
+Aquiba Yudah Benarroch Bittán
+
+2025-11-27
+"""
 
 from flask import Flask, request, jsonify
 from flask_cors import CORS, cross_origin
@@ -56,7 +62,7 @@ def getAgents():
         # The y coordinate is set to 1, since the agents are in a 3D world. The z coordinate corresponds to the row (y coordinate) of the grid in mesa.
         try:
             agentCells = randomModel.grid.all_cells.select(
-                lambda cell: any(isinstance(obj, Traffic_Light) for obj in cell.agents)
+                lambda cell: any(isinstance(obj, CarAgent) for obj in cell.agents)
             ).cells
             # print(f"CELLS: {agentCells}")
 
@@ -64,7 +70,7 @@ def getAgents():
                 (cell.coordinate, agent)
                 for cell in agentCells
                 for agent in cell.agents
-                if isinstance(agent, Traffic_Light)
+                if isinstance(agent, CarAgent)
             ]
             # print(f"AGENTS: {agents}")
 
@@ -72,9 +78,9 @@ def getAgents():
                 {
                     "id": str(a.unique_id),
                     "x": coordinate[0],
-                    "y":1,
-                    "z":coordinate[1],
-                    "state": a.state,
+                    "y": 1,
+                    "z": coordinate[1],
+                    "direction": next((road.direction for road in randomModel.grid[coordinate].agents if isinstance(road, Road)), None),
                 }
                 for (coordinate, a) in agents
             ]
@@ -84,6 +90,45 @@ def getAgents():
         except Exception as e:
             print(e)
             return jsonify({"message": "Error with the agent positions"}), 500
+
+# This route will be used to get the positions of the ambulances
+@app.route('/getAmbulances', methods=['GET'])
+@cross_origin()
+def getAmbulances():
+    global randomModel
+
+    if request.method == 'GET':
+        try:
+            # Get the positions of the ambulances and return them to WebGL in JSON.json.t.
+            ambulanceCells = randomModel.grid.all_cells.select(
+                lambda cell: any(isinstance(obj, Ambulance) for obj in cell.agents)
+            )
+            # print(f"CELLS: {agentCells}")
+
+            agents = [
+                (cell.coordinate, agent)
+                for cell in ambulanceCells
+                for agent in cell.agents
+                if isinstance(agent, Ambulance)
+            ]
+            # print(f"AGENTS: {agents}")
+
+            ambulancePositions = [
+                {
+                    "id": str(a.unique_id),
+                    "x": coordinate[0],
+                    "y": 1,
+                    "z": coordinate[1],
+                    "direction": next((road.direction for road in randomModel.grid[coordinate].agents if isinstance(road, Road)), None),
+                }
+                for (coordinate, a) in agents
+            ]
+            # print(f"AMBULANCE POSITIONS: {ambulancePositions}")
+
+            return jsonify({'positions': ambulancePositions})
+        except Exception as e:
+            print(e)
+            return jsonify({"message": "Error with ambulance positions"}), 500
 
 # This route will be used to get the positions of the obstacles
 @app.route('/getObstacles', methods=['GET'])
@@ -110,7 +155,12 @@ def getObstacles():
             # print(f"AGENTS: {agents}")
 
             obstaclePositions = [
-                {"id": str(a.unique_id), "x": coordinate[0], "y":1, "z":coordinate[1]}
+                {
+                    "id": str(a.unique_id),
+                    "x": coordinate[0],
+                    "y": 1,
+                    "z": coordinate[1]
+                }
                 for (coordinate, a) in agents
             ]
             # print(f"OBSTACLE POSITIONS: {obstaclePositions}")
@@ -119,6 +169,171 @@ def getObstacles():
         except Exception as e:
             print(e)
             return jsonify({"message": "Error with obstacle positions"}), 500
+
+# This route will be used to get the positions of the traffic lights
+@app.route('/getTrafficLights', methods=['GET'])
+@cross_origin()
+def getTrafficLights():
+    global randomModel
+
+    if request.method == 'GET':
+        try:
+            # Get the positions of the traffic lights and return them to WebGL in JSON.json.t.
+            # Same as before, the positions are sent as a list of dictionaries, where each dictionary has the id and position of an obstacle.
+            TLCells = randomModel.traffic_lights
+
+            # Get the coordinates of the traffic lights
+            trafficLights = [
+                (agent.cell.coordinate, agent)
+                for agent in TLCells
+            ]
+
+            TLPositions = [
+                {
+                    "id": str(a.unique_id),
+                    "x": coordinate[0],
+                    "y": 1,
+                    "z": coordinate[1],
+                    "state": a.state,
+                    "direction": next((road.direction for road in a.cell.agents if isinstance(road, Road)), None),
+                }
+                for (coordinate, a) in trafficLights
+            ]
+
+            return jsonify({'positions': TLPositions})
+        except Exception as e:
+            print(e)
+            return jsonify({"message": "Error with obstacle positions"}), 500
+
+# This route will be used to get the positions of the roads
+@app.route('/getRoads', methods=['GET'])
+@cross_origin()
+def getRoads():
+    global randomModel
+
+    if request.method == 'GET':
+        try:
+            # Get the positions of the roads and return them to WebGL in JSON.json.t.
+            roadCells = randomModel.grid.all_cells.select(
+                lambda cell: any(isinstance(obj, Road) for obj in cell.agents)
+            ).cells
+
+            roads = [
+                (cell.coordinate, agent)
+                for cell in roadCells
+                for agent in cell.agents
+                if isinstance(agent, Road)
+            ]
+
+            roadPositions = [
+                {
+                    "id": str(a.unique_id),
+                    "x": coordinate[0],
+                    "y": 0.9,
+                    "z": coordinate[1],
+                    "direction": a.direction,
+                }
+                for (coordinate, a) in roads
+            ]
+
+            return jsonify({'positions': roadPositions})
+        except Exception as e:
+            print(e)
+            return jsonify({"message": "Error with road positions"}), 500
+
+# This route will be used to get the positions of the sidewalks
+@app.route('/getSidewalks', methods=['GET'])
+@cross_origin()
+def getSidewalks():
+    global randomModel
+
+    if request.method == 'GET':
+        try:
+            sidewalkCells = randomModel.grid.all_cells.select(
+                lambda cell: any(isinstance(obj, SideWalk) for obj in cell.agents)
+            ).cells
+
+            sidewalks = [
+                (cell.coordinate, agent)
+                for cell in sidewalkCells
+                for agent in cell.agents
+                if isinstance(agent, SideWalk)
+            ]
+
+            sidewalkPositions = [
+                {
+                    "id": str(a.unique_id),
+                    "x": coordinate[0],
+                    "y": 0.85,
+                    "z": coordinate[1],
+                }
+                for (coordinate, a) in sidewalks
+            ]
+
+            return jsonify({'positions': sidewalkPositions})
+        except Exception as e:
+            print(e)
+            return jsonify({"message": "Error with sidewalk positions"}), 500
+
+# This route will be used to get the positions of the hospitals
+@app.route('/getHospitals', methods=['GET'])
+@cross_origin()
+def getHospitals():
+    global randomModel
+
+    if request.method == 'GET':
+        try:
+            hospitalCells = randomModel.hospitals
+
+            hospitals = [
+                (agent.cell.coordinate, agent)
+                for agent in hospitalCells
+            ]
+
+            hospitalPositions = [
+                {
+                    "id": str(a.unique_id),
+                    "x": coordinate[0],
+                    "y": 1,
+                    "z": coordinate[1],
+                }
+                for (coordinate, a) in hospitals
+            ]
+
+            return jsonify({'positions': hospitalPositions})
+        except Exception as e:
+            print(e)
+            return jsonify({"message": "Error with hospital positions"}), 500
+
+# This route will be used to get the positions of the destinations
+@app.route('/getDestinations', methods=['GET'])
+@cross_origin()
+def getDestinations():
+    global randomModel
+
+    if request.method == 'GET':
+        try:
+            destinationCells = randomModel.destinations
+
+            destinations = [
+                (agent.cell.coordinate, agent)
+                for agent in destinationCells
+            ]
+
+            destinationPositions = [
+                {
+                    "id": str(a.unique_id),
+                    "x": coordinate[0],
+                    "y": 1,
+                    "z": coordinate[1],
+                }
+                for (coordinate, a) in destinations
+            ]
+
+            return jsonify({'positions': destinationPositions})
+        except Exception as e:
+            print(e)
+            return jsonify({"message": "Error with destination positions"}), 500
 
 # This route will be used to update the model
 @app.route('/update', methods=['GET'])

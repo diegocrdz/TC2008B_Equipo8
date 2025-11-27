@@ -5,10 +5,9 @@
  * 2025-11-08
  */
 
-
 'use strict';
 
-import { Object3D } from '../libs/object3d';
+import { Object3D, TrafficLight, Road } from '../libs/object3d';
 
 // Define the agent server URI
 const agent_server_uri = "http://localhost:8585/";
@@ -16,6 +15,12 @@ const agent_server_uri = "http://localhost:8585/";
 // Initialize arrays to store agents and obstacles
 const agents = [];
 const obstacles = [];
+const trafficLights = [];
+const roads = [];
+const hospitals = [];
+const destinations = [];
+const sidewalks = [];
+const ambulances = [];
 
 // Define the data object
 const initData = {
@@ -23,7 +28,6 @@ const initData = {
     width: 28,
     height: 28
 };
-
 
 /* FUNCTIONS FOR THE INTERACTION WITH THE MESA SERVER */
 
@@ -65,9 +69,6 @@ async function getAgents() {
             // Parse the response as JSON
             let result = await response.json();
 
-            // Log the agent positions
-            //console.log("getAgents positions: ", result.positions)
-
             // Check if the agents array is empty
             if (agents.length == 0) {
                 // Create new agents and add them to the agents array
@@ -75,11 +76,10 @@ async function getAgents() {
                     const newAgent = new Object3D(agent.id, [agent.x, agent.y, agent.z]);
                     // Store the initial position
                     newAgent['oldPosArray'] = newAgent.posArray;
-                    newAgent.state = agent.state;
+                    // Store the direction
+                    newAgent['direction'] = agent.direction;
                     agents.push(newAgent);
                 }
-                // Log the agents array
-                //console.log("Agents:", agents);
 
             } else {
                 // Update the positions of existing agents
@@ -91,18 +91,41 @@ async function getAgents() {
                         // Update the agent's position
                         current_agent.oldPosArray = current_agent.posArray;
                         current_agent.position = {x: agent.x, y: agent.y, z: agent.z};
-                        current_agent.state = agent.state;
-
-                        if (current_agent.state == true) {
-                            current_agent.color = [0.0, 1.0, 0.0, 1.0];
-                        } else {
-                            current_agent.color = [1.0, 0.0, 0.0, 1.0];
-                        }
+                        // Update the direction
+                        current_agent.direction = agent.direction;
                     }
 
                     //console.log("OLD: ", current_agent.oldPosArray,
                     //            " NEW: ", current_agent.posArray);
                 }
+            }
+        }
+
+    } catch (error) {
+        // Log any errors that occur during the request
+        console.log(error);
+    }
+}
+
+/*
+ * Retrieves the current positions of all ambulances from the agent server.
+ */
+async function getAmbulances() {
+    try {
+        // Send a GET request to the agent server to retrieve the ambulance positions
+        let response = await fetch(agent_server_uri + "getAmbulances");
+
+        // Check if the response was successful
+        if (response.ok) {
+            // Parse the response as JSON
+            let result = await response.json();
+
+            // Create new ambulances and add them to the ambulances array
+            for (const ambulance of result.positions) {
+                const newAmbulance = new Object3D(ambulance.id, [ambulance.x, ambulance.y, ambulance.z]);
+                // Store the direction
+                newAmbulance['direction'] = ambulance.direction;
+                ambulances.push(newAmbulance);
             }
         }
 
@@ -130,8 +153,229 @@ async function getObstacles() {
                 const newObstacle = new Object3D(obstacle.id, [obstacle.x, obstacle.y, obstacle.z]);
                 obstacles.push(newObstacle);
             }
-            // Log the obstacles array
-            //console.log("Obstacles:", obstacles);
+        }
+
+    } catch (error) {
+        // Log any errors that occur during the request
+        console.log(error);
+    }
+}
+
+/*
+ * Gets the current positions of all traffic lights from the agent server.
+ */
+async function getTrafficLights() {
+    try {
+        // Send a GET request to the agent server to retrieve the traffic light positions
+        let response = await fetch(agent_server_uri + "getTrafficLights");
+
+        // Check if the response was successful
+        if (response.ok) {
+            // Parse the response as JSON
+            let result = await response.json();
+
+            // Check if the lights array is empty
+            if (trafficLights.length == 0) {
+                // Create new agents and add them to the agents array
+                for (const tl of result.positions) {
+                    const newTL = new TrafficLight(tl.id, [tl.x, tl.y, tl.z]);
+                    newTL.state = tl.state;
+                    newTL.direction = tl.direction;
+
+                    // Offset initial position to displace traffic lights
+                    let offsetX = 0;
+                    let offsetZ = 0;
+
+                    // Apply offset based on direction to displace traffic lights
+                    switch (newTL.direction) {
+                        case "Right":
+                            offsetZ = 0.5;
+                            break;
+                        case "Left":
+                            offsetZ = 0.5;
+                            break;
+                        case "Up":
+                            offsetX -= 0.5;
+                            break;
+                        case "Down":
+                            offsetX -= 0.5;
+                            break;
+                    }
+
+                    // Update offset position
+                    newTL.offsetX = offsetX;
+                    newTL.offsetZ = offsetZ;
+
+                    // Apply offset to position
+                    newTL.position.x += newTL.offsetX;
+                    newTL.position.z += newTL.offsetZ;
+
+                    // Set initial color based on state
+                    if (tl.state == true) {
+                        newTL.color = [0.0, 1.0, 0.0, 1.0];
+                    } else {
+                        newTL.color = [1.0, 0.0, 0.0, 1.0];
+                    }
+                    trafficLights.push(newTL);
+                }
+
+            } else {
+                // Update the positions of existing agents
+                for (const tl of result.positions) {
+                    const current_tl = trafficLights.find((object3d) => object3d.id == tl.id);
+
+                    // Check if the agent exists in the trafficLights array
+                    if(current_tl != undefined){
+                        // Update the agent's position
+                        current_tl.oldPosArray = current_tl.posArray;
+                        current_tl.position = {x: tl.x, y: tl.y, z: tl.z};
+
+                        // Retrieve stored offsets
+                        const offsetX = current_tl.offsetX || 0;
+                        const offsetZ = current_tl.offsetZ || 0;
+
+                        // Apply offset
+                        current_tl.position = {
+                            x: tl.x + offsetX,
+                            y: tl.y,
+                            z: tl.z + offsetZ
+                        };
+
+                        // Update state and direction
+                        current_tl.state = tl.state;
+                        current_tl.direction = tl.direction;
+
+                        // Change color based on state
+                        if (tl.state == true) {
+                            current_tl.color = [0.0, 1.0, 0.0, 1.0];
+                        } else {
+                            current_tl.color = [1.0, 0.0, 0.0, 1.0];
+                        }
+                        
+                        // Update light based on state
+                        if (current_tl.light) {
+                            const pos = current_tl.position;
+                            const lightHeight = pos.y + 5;
+
+                            // Update light position
+                            current_tl.light.position = [pos.x, lightHeight, pos.z];
+
+                            // Update light color
+                            const lightColor = tl.state
+                                ? [0.0, 1.0, 0.0, 1.0]
+                                : [1.0, 0.0, 0.0, 1.0];
+                            
+                            current_tl.light.diffuse = lightColor;
+                            current_tl.light.specular = lightColor;
+                        }
+                    }
+                }
+            }
+        }
+
+    } catch (error) {
+        // Log any errors that occur during the request
+        console.log(error);
+    }
+}
+
+async function getRoads() {
+    try {
+        // Send a GET request to the agent server to retrieve the road positions
+        let response = await fetch(agent_server_uri + "getRoads");
+
+        // Check if the response was successful
+        if (response.ok) {
+            // Parse the response as JSON
+            let result = await response.json();
+
+            // Create new roads and add them to the roads array
+            for (const road of result.positions) {
+                const newRoad = new Road(road.id, [road.x, road.y, road.z]);
+                newRoad.direction = road.direction;
+                roads.push(newRoad);
+            }
+        }
+
+    } catch (error) {
+        // Log any errors that occur during the request
+        console.log(error);
+    }
+}
+
+/*
+ * Gets the current positions of all sidewalks from the agent server.
+ */
+async function getSidewalks() {
+    try {
+        // Send a GET request to the agent server to retrieve the sidewalk positions
+        let response = await fetch(agent_server_uri + "getSidewalks");
+
+        // Check if the response was successful
+        if (response.ok) {
+            // Parse the response as JSON
+            let result = await response.json();
+
+            // Create new sidewalks and add them to the sidewalks array
+            for (const sidewalk of result.positions) {
+                const newSidewalk = new Object3D(sidewalk.id, [sidewalk.x, sidewalk.y, sidewalk.z]);
+                newSidewalk.color = [0.8, 0.8, 1.0, 1.0];
+                sidewalks.push(newSidewalk);
+            }
+        }
+
+    } catch (error) {
+        // Log any errors that occur during the request
+        console.log(error);
+    }
+}
+
+/*
+ * Gets the current positions of all hospitals from the agent server.
+ */
+async function getHospitals() {
+    try {
+        // Send a GET request to the agent server to retrieve the hospital positions
+        let response = await fetch(agent_server_uri + "getHospitals");
+
+        // Check if the response was successful
+        if (response.ok) {
+            // Parse the response as JSON
+            let result = await response.json();
+
+            // Create new hospitals and add them to the hospitals array
+            for (const hospital of result.positions) {
+                const newHospital = new Object3D(hospital.id, [hospital.x, hospital.y, hospital.z]);
+                newHospital.color = [1.0, 0.8, 0.8, 1.0];
+                hospitals.push(newHospital);
+            }
+        }
+
+    } catch (error) {
+        // Log any errors that occur during the request
+        console.log(error);
+    }
+}
+
+/*
+ * Gets the current positions of all destinations from the agent server.
+ */
+async function getDestinations() {
+    try {
+        // Send a GET request to the agent server to retrieve the destination positions
+        let response = await fetch(agent_server_uri + "getDestinations");
+
+        // Check if the response was successful
+        if (response.ok) {
+            // Parse the response as JSON
+            let result = await response.json();
+
+            // Create new destinations and add them to the destinations array
+            for (const destination of result.positions) {
+                const newDestination = new Object3D(destination.id, [destination.x, destination.y, destination.z]);
+                newDestination.color = [0.8, 1.0, 0.8, 1.0];
+                destinations.push(newDestination);
+            }
         }
 
     } catch (error) {
@@ -152,6 +396,7 @@ async function update() {
         if (response.ok) {
             // Retrieve the updated agent positions
             await getAgents();
+            await getTrafficLights();
             // Log a message indicating that the agents have been updated
             //console.log("Updated agents");
         }
@@ -162,4 +407,14 @@ async function update() {
     }
 }
 
-export { agents, obstacles, initAgentsModel, update, getAgents, getObstacles };
+export {
+    initAgentsModel, update,
+    agents, getAgents,
+    ambulances, getAmbulances,
+    obstacles, getObstacles,
+    trafficLights, getTrafficLights,
+    roads, getRoads,
+    hospitals, getHospitals,
+    destinations, getDestinations,
+    sidewalks, getSidewalks,
+};

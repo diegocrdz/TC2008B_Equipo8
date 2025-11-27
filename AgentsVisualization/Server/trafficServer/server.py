@@ -31,6 +31,9 @@ def agent_portrayal(agent):
     if isinstance(agent, Obstacle):
         portrayal.color = "#555"
 
+    if (isinstance(agent, CarAgent)):
+        portrayal.color = "blue"
+
     return portrayal
 
 model_params = {

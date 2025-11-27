@@ -96,4 +96,33 @@ class Object3D {
 
 };
 
-export { Object3D };
+class TrafficLight extends Object3D {
+    constructor(
+        id,
+        position=[0, 0, 0],
+        rotation=[0, 0, 0],
+        scale=[1, 1, 1],
+        color=[1.0, 0.0, 0.0, 1.0],
+        state=false
+    ) {
+        super(id, position, rotation, scale, color);
+
+        // Traffic light state: true for green, false for red
+        this.state = state;
+    }
+}
+
+class Road extends Object3D {
+    constructor(
+        id,
+        position=[0, 0, 0],
+        rotation=[0, 0, 0],
+        scale=[1, 1, 1],
+        color=[0.2, 0.2, 0.2, 1.0]
+    ) {
+        super(id, position, rotation, scale, color);
+        this.direction = "Right";  // Default direction
+    }
+}
+
+export { Object3D, TrafficLight, Road };

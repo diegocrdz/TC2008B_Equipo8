@@ -8,11 +8,13 @@
 import { M4 } from '../libs/3d-lib';
 
 class Light3D {
-    constructor(id,
+    constructor(
         position=[0, 0, 0],
         ambient=[Math.random(), Math.random(), Math.random(), 1.0],
         diffuse=[Math.random(), Math.random(), Math.random(), 1.0],
-        specular=[Math.random(), Math.random(), Math.random(), 1.0]) {
+        specular=[Math.random(), Math.random(), Math.random(), 1.0],
+        id=null,
+    ) {
         this.id = id;
         // Initial transformations
         this.position = {
