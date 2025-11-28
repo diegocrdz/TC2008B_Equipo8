@@ -26,10 +26,16 @@ class CarAgent(CellAgent):
         super().__init__(model)
         self.cell = cell
         self.state = "idle"  # Initial state
-        self.lastDirection = None  # To keep track of last movement direction
         self.destination = None  # Will be asignes on first step
         self.path = [] # List of coordinates to follow
         self.moved_for_ambulance = False  # Track if already moved to let ambulance pass
+        
+        # Initialize lastDirection from the road in the current cell
+        self.lastDirection = None
+        for agent in cell.agents:
+            if isinstance(agent, Road):
+                self.lastDirection = agent.direction
+                break
     
     def assignRandomDestination(self):
         """Assigns a random destination from available Destination agents."""
@@ -125,6 +131,10 @@ class CarAgent(CellAgent):
         else:
             return None  # Invalid direction
 
+        # Validate coordinates are within grid bounds
+        if not (0 <= next_coord[0] < self.model.width and 0 <= next_coord[1] < self.model.height):
+            return None  # Out of bounds
+
         # Get the next cell from grid
         next_cell = self.model.grid[next_coord]
         
@@ -150,6 +160,13 @@ class CarAgent(CellAgent):
         has_car = any(isinstance(agent, CarAgent) for agent in next_cell.agents)
         
         if has_car:
+            # Try to find an alternative path (diagonal or lateral cells)
+            alternative_cell = self.findAlternativePath()
+            if alternative_cell is not None:
+                self.state = "moving"
+                return alternative_cell
+            
+            # No alternative found, wait for car to move
             self.state = "waitingCar"
             return None
         
@@ -164,12 +181,73 @@ class CarAgent(CellAgent):
         self.state = "moving"
         return next_cell
     
+    def findAlternativePath(self):
+        """Try to find an alternative cell (diagonal or lateral) to avoid blockage."""
+        x, y = self.cell.coordinate
+        
+        # Get current direction
+        direction = self.lastDirection
+        if direction is None:
+            for agent in self.cell.agents:
+                if isinstance(agent, Road):
+                    direction = agent.direction
+                    break
+        
+        if direction is None:
+            return None
+        
+        # Get possible alternative cells based on direction
+        alternative_coords = []
+        if direction == "Up":
+            alternative_coords = [(x - 1, y), (x + 1, y), (x - 1, y + 1), (x + 1, y + 1)]
+        elif direction == "Down":
+            alternative_coords = [(x - 1, y), (x + 1, y), (x - 1, y - 1), (x + 1, y - 1)]
+        elif direction == "Left":
+            alternative_coords = [(x, y + 1), (x, y - 1), (x - 1, y + 1), (x - 1, y - 1)]
+        elif direction == "Right":
+            alternative_coords = [(x, y + 1), (x, y - 1), (x + 1, y + 1), (x + 1, y - 1)]
+        
+        # Check each alternative cell
+        for nx, ny in alternative_coords:
+            # Validate bounds
+            if not (0 <= nx < self.model.width and 0 <= ny < self.model.height):
+                continue
+            
+            alt_cell = self.model.grid[(nx, ny)]
+            
+            # Check if cell has road and no obstacle
+            has_road = any(isinstance(agent, Road) for agent in alt_cell.agents)
+            has_obstacle = any(isinstance(agent, Obstacle) for agent in alt_cell.agents)
+            
+            if not has_road or has_obstacle:
+                continue
+            
+            # Check if cell has car or ambulance
+            has_car = any(isinstance(agent, CarAgent) for agent in alt_cell.agents)
+            has_ambulance = any(isinstance(agent, Ambulance) for agent in alt_cell.agents)
+            
+            if has_car or has_ambulance:
+                continue
+            
+            # Check if there's a traffic light and if it's green
+            traffic_light = next(
+                (obj for obj in alt_cell.agents if isinstance(obj, Traffic_Light)), None
+            )
+            
+            if traffic_light and not traffic_light.is_green:
+                continue
+            
+            # Cell is valid
+            return alt_cell
+        
+        return None
+    
     def checkAmbulance(self):
         """Chooses the next cell based on the state of ambulances."""
         # This method was obtained from Mesa API Documentation
         # https://mesa.readthedocs.io/latest/apis/discrete_space.html#mesa.discrete_space.__init__.OrthogonalMooreGrid
         neighbor_cells = self.cell.get_neighborhood(
-            radius=4,
+            radius=2,
             include_center=False
 
         )
@@ -269,50 +347,17 @@ class CarAgent(CellAgent):
 
         # Calculate Manhattan distance
         # We have to estimate heuristic using this distance
-
-        def heuristic(current, goal):
-            base_distance = abs(current[0] - goal[0]) + abs(current[1] - goal[1])
+        # since it is not given from the model
+        # Ref: https://www.geeksforgeeks.org/dsa/a-search-algorithm/
+        def heuristic(a, b):
+            return abs(a[0] - b[0]) + abs(a[1] - b[1])
         
-            # Get the road direction at current position
-            current_cell = self.model.grid[current]
-            current_road = None
-
-            for agent in current_cell.agents:
-                if isinstance(agent, Road):
-                    current_road = agent
-                    break
-
-            # If no road, slightly penalize (destination cells)
-            if current_road is None:
-                return base_distance + 5
-            
-            direction = current_road.direction
-            x_current, y_current = current
-            x_goal, y_goal = goal
-
-            # Calculate direction needed to reach goal
-            dx = x_goal - x_current
-            dy = y_goal - y_current
-
-            # Small penalty if road direction opposes goal direction
-            # This guides the search but keeps heuristic admissible
-            penalty = 0
-
-            if direction == "Right" and dx < 0: # Road goes right but goal is left
-                penalty = 2
-            elif direction == "Left" and dx > 0: # Road goes left but goal is right
-                penalty = 2
-            elif direction == "Up" and dy < 0: # Road goes up but goal is down
-                penalty = 2
-            elif direction == "Down" and dy > 0: # Road goes down but goal is up
-                penalty = 2
-
-            return base_distance + penalty
-        
-        def getNeighborsDirections(current_coord):
-            """Get valid neighboring coordinates based on road directions."""
-            current_cell = self.model.grid[current_coord]
+        def getValidNeighbors(current_coord):
+            """Get valid neighboring respecting road directions."""
             valid_neighbors = []
+            
+            # Get the current cell
+            current_cell = self.model.grid[current_coord]
             
             # Get the current road direction
             current_road = None
@@ -322,40 +367,27 @@ class CarAgent(CellAgent):
                     break
             
             if current_road is None:
-                # If we're at destination (no road), allow any adjacent road
-                x, y = current_coord
-                adjacent = [
-                    (x, y + 1), (x, y - 1), (x - 1, y), (x + 1, y)
-                ]
-                for nx, ny in adjacent:
-                    if not (0 <= nx < self.model.grid.width and 0 <= ny < self.model.grid.height):
-                        continue
-                    neighbor_cell = self.model.grid[(nx, ny)]
-                    has_road = any(isinstance(agent, Road) for agent in neighbor_cell.agents)
-                    has_obstacle = any(isinstance(agent, Obstacle) for agent in neighbor_cell.agents)
-                    if has_road and not has_obstacle:
-                        valid_neighbors.append((nx, ny))
-                return valid_neighbors
+                return []  # No road, no neighbors
             
             direction = current_road.direction
             x, y = current_coord
             
-            # All possible adjacent cells
-            adjacent = [
-                (x, y + 1),  # Up
-                (x, y - 1),  # Down
-                (x - 1, y),  # Left
-                (x + 1, y)   # Right
-            ]
+            # Get neighbors (including diagonals)
+            neighbors = current_cell.get_neighborhood(radius=2, include_center=False)
             
-            # Check each adjacent cell
-            for nx, ny in adjacent:
-                # Check bounds
-                if not (0 <= nx < self.model.grid.width and 0 <= ny < self.model.grid.height):
-                    continue
-                
-                neighbor_cell = self.model.grid[(nx, ny)]
-                
+            # Opposite directions to avoid
+            opposites = {
+                "Up": "Down",
+                "Down": "Up",
+                "Left": "Right",
+                "Right": "Left"
+            }
+            opposite = opposites.get(direction)
+            
+            # Check each neighbor
+            for neighbor_cell in neighbors:
+                nx, ny = neighbor_cell.coordinate
+            
                 # Check if it's destination or has a road (no obstacle)
                 has_road = any(isinstance(agent, Road) for agent in neighbor_cell.agents)
                 has_destination = any(isinstance(agent, Destination) for agent in neighbor_cell.agents)
@@ -375,42 +407,26 @@ class CarAgent(CellAgent):
                 elif nx == x + 1 and ny == y:
                     move_direction = "Right"
                 
-                # Check if this movement is allowed from current road direction
-                # Can go straight or turn (not backwards)
-                allowed = False
-                if direction == "Up":
-                    allowed = move_direction in ["Up", "Left", "Right"]
-                elif direction == "Down":
-                    allowed = move_direction in ["Down", "Left", "Right"]
-                elif direction == "Left":
-                    allowed = move_direction in ["Left", "Up", "Down"]
-                elif direction == "Right":
-                    allowed = move_direction in ["Right", "Up", "Down"]
-                
-                if allowed:
+                # Allow any direction except the opposite (backwards)
+                if move_direction and move_direction != opposite:
                     valid_neighbors.append((nx, ny))
-            
+
             return valid_neighbors
-            
-    
+
         # Initialize variables
-        grid = self.model.grid
         stack = [] # Stack of nodes to explore
         c_list = {}  # g values
         visited = set()  # visited nodes
-        fathers = {}  # Father vector to reconstruct path
+        fathers = {} # Father vector to reconstruct path
 
         # Initialize stack with start node
         # Heap already sorts by smallest f value
         heapq.heappush(stack, (0, start))
         c_list[start] = 0
-        iterations = 0
-        max_iterations = 1000  # Safety limit
 
         # While the stack is not empty
         # Explore neighbors with lowest f value
-        while len(stack) > 0 and iterations < max_iterations:
-            iterations += 1
+        while len(stack) > 0:
             # Get node with lowest f value
             # This returns f, coordinate
             # but we only need coordinate, so we use _
@@ -428,7 +444,7 @@ class CarAgent(CellAgent):
                     break
 
                 # Get valid neighbors based on road directions
-                valid_neighbors = getNeighborsDirections(current)
+                valid_neighbors = getValidNeighbors(current)
 
                 # Explore neighbors
                 for neighbor in valid_neighbors:
@@ -522,6 +538,7 @@ class CarAgent(CellAgent):
         
         # If no path exists, cannot move
         if not self.path:
+            self.remove()  # Remove car from the model
             return
 
         # Check current state and decide next action
@@ -582,8 +599,15 @@ class Ambulance(CellAgent):
         self.cell = cell
         self._has_emergency = random.choice([True, False])  # Random emergency state
         self.state = "emergency" if self._has_emergency else "idle"  # Initial state
-        self.lastDirection = None  # To keep track of last movement direction
         self.moved_for_ambulance = False  # Track if already moved to let ambulance pass
+        
+        # Initialize lastDirection from the road in the current cell
+        self.lastDirection = None
+        for agent in cell.agents:
+            if isinstance(agent, Road):
+                self.lastDirection = agent.direction
+                break
+        
         print(f"ID: {self.unique_id} Ambulance state: {self.state}")
 
     def step(self):
@@ -699,6 +723,10 @@ class Ambulance(CellAgent):
             next_coord = (x + 1, y)
         else:
             return None  # Invalid direction
+
+        # Validate coordinates are within grid bounds
+        if not (0 <= next_coord[0] < self.model.width and 0 <= next_coord[1] < self.model.height):
+            return None  # Out of bounds
 
         # Get the next cell from grid
         next_cell = self.model.grid[next_coord]

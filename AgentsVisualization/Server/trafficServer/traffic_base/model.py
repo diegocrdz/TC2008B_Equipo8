@@ -73,8 +73,10 @@ class CityModel(Model):
                         # Count surrounding road directions
                         horizontal_right = row.count(">")
                         horizontal_left = row.count("<")
-                        vertical_down = row.count("v")
-                        vertical_up = row.count("^")
+                        
+                        # Count vertical directions in the current column
+                        vertical_down = sum(1 for i, line in enumerate(lines) if c < len(line) and line[c] == "v")
+                        vertical_up = sum(1 for i, line in enumerate(lines) if c < len(line) and line[c] == "^")
                         
                         if horizontal_right + horizontal_left > vertical_down + vertical_up:
                             # Avenida horizontal
@@ -133,9 +135,55 @@ class CityModel(Model):
                         agent = Ambulance(self, cell)
                         self.ambulances.append(agent)
                         self.roads.append(road_agent)
+        
+        # Get corners of the grid
+        self.corners = [
+            self.grid[0, 0], # bottom left
+            self.grid[0, self.height - 1], # top left
+            self.grid[self.width - 1, 0], # bottom right
+            self.grid[self.width - 1, self.height - 1], # top right
+        ]
 
+        self.spawn_vehicles()
         self.running = True
+    
+    def spawn_vehicles(self):
+        """Spawn vehicles at the corners of the grid based on the spawn rates."""
+
+        # Check if the vehicles can be spawn based on the step
+        if self.steps % self.car_spawn_rate != 0:
+            return
+
+        cars_spawned = 0
+        ambulances_spawned = 0
+        corners_to_use = self.corners.copy()
+
+        # Spawn vehicles at each corner
+        for _ in range(len(corners_to_use)):
+
+            # Get random corner
+            corner = self.random.choice(corners_to_use)
+            corners_to_use.remove(corner)
+
+            # Spawn cars
+            car = CarAgent(self, corner)
+            self.cars.append(car)
+            cars_spawned += 1
+
+            """
+            # Spawn ambulances
+            if ambulances_spawned < self.ambulance_per_step:
+                ambulance = Ambulance(self, corner)
+                self.ambulances.append(ambulance)
+                ambulances_spawned += 1
+            else:
+                # Spawn cars
+                car = CarAgent(self, corner)
+                self.cars.append(car)
+                cars_spawned += 1
+            """
 
     def step(self):
         """Advance the model by one step."""
+        self.spawn_vehicles()
         self.agents.shuffle_do("step")

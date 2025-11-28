@@ -58,7 +58,6 @@ import {
 
 // Utils
 import {
-  getLightsCloseToCamera,
   assignModelToAgents,
   getRotationByDirection,
   getTrafficLightRotation,
@@ -138,7 +137,7 @@ function setupScene() {
   let light = new Light3D(
     [50, 4, 50],          // Position
     [0.4, 0.4, 1.0, 1.0], // Ambient
-    [0.2, 0.2, 0.2, 1.0], // Diffuse
+    [0.0, 0.0, 0.0, 1.0], // Diffuse
     [0.5, 0.5, 0.5, 1.0], // Specular
   );
   scene.addLight(light);
@@ -579,6 +578,7 @@ function setupUI() {
   const cameraFolder = gui.addFolder('Camera');
   cameraFolder.add(scene.camera, 'distance', 1, 50).decimals(2);
   cameraFolder.add(scene.camera, 'elevation', -Math.PI / 2, Math.PI / 2).decimals(2);
+  cameraFolder.add(scene.camera, 'azimuth', -Math.PI, Math.PI).decimals(2);
 
   // Global light
   const globalLightFolder = gui.addFolder('Global Light');
@@ -629,7 +629,7 @@ function setupUI() {
       scene.camera.azimuth = 4;
       scene.camera.panOffset = [0, 8, 0];
       scene.camera.target = { x: 0, y: 0, z: 0 };
-    }
+    },
   };
 
   // Add actions to the folder

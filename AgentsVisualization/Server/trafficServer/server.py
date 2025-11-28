@@ -50,7 +50,7 @@ model_params = {
         "label": "Random Seed",
     },
     "car_spawn_rate": Slider(
-        "Car Spawn Rate", 5, 0, 10, 1,
+        "Car Spawn Rate", 10, 0, 10, 1,
     ),
     "vehicles_per_step": Slider(
         "Vehicles per step", 1, 0, 4, 1,
