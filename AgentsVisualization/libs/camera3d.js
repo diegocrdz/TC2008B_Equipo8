@@ -13,24 +13,32 @@
 
 
 class Camera3D {
-    constructor(id,
+    constructor(
+        id,
         distance = 50,
         azimuth = 0,
         elevation = Math.PI / 4,
         position=[0, 0, 10],
-        target=[0, 0, 0]) {
+        target=[0, 0, 0]
+    ) {
         this.id = id;
+
         // Initial transformations
         this.position = {
             x: position[0],
             y: position[1],
             z: position[2],
         };
+
         this.target = {
             x: target[0],
             y: target[1],
             z: target[2],
         }
+
+        // Object to follow
+        this.followObject = null;
+        this.followSmoothness = 0.1;
 
         // Determine the camera location with respect to its target
         this.distance = distance;   // Distance from the camera to its target
@@ -118,6 +126,9 @@ class Camera3D {
     }
 
     checkKeys() {
+        // Update camera position based on followed object
+        this.updateFollowObject();
+
         // Rotation
         if (this.keysPressed['ArrowLeft']) {
             this.rotate(-1, 0);
@@ -153,6 +164,28 @@ class Camera3D {
         if (this.keysPressed['-'] || this.keysPressed['_']) {
             this.zoom(1); // Zoom out
         }
+    }
+
+    updateFollowObject() {
+        // If no object has been set to follow, return
+        if (!this.followObject) {
+            return;
+        }
+
+        // Get the position of the followed object
+        const p = this.followObject.posArray;
+        const targetX = p[0];
+        const targetY = p[1];
+        const targetZ = p[2];
+
+        // Interpolation to smooth the camera movement
+        this.target.x += (targetX - this.target.x) * this.followSmoothness;
+        this.target.y += (targetY - this.target.y) * this.followSmoothness;
+        this.target.z += (targetZ - this.target.z) * this.followSmoothness;
+    }
+
+    setTargetObject(object) {
+        this.followObject = object;
     }
 
 }

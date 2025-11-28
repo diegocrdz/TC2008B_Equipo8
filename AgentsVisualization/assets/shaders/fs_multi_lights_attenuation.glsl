@@ -1,7 +1,8 @@
 #version 300 es
 precision highp float;
 
-const int NUM_LIGHTS = 16;
+// Max number of lights
+const int NUM_LIGHTS = 27;
 
 in vec4 v_position;
 in vec3 v_normal;

@@ -12,6 +12,7 @@
 
 'use strict';
 
+// Libs
 import * as twgl from 'twgl-base.js';
 import GUI from 'lil-gui';
 import { M4 } from '../libs/3d-lib';
@@ -20,7 +21,6 @@ import { Object3D } from '../libs/object3d';
 import { Light3D } from '../libs/light3d';
 import { Camera3D } from '../libs/camera3d';
 import { cubeTextured } from '../libs/shapes';
-import { loadMtl } from '../libs/obj_loader.js';
 
 // Functions and arrays for the communication with the API
 import {
@@ -35,24 +35,35 @@ import {
   sidewalks, getSidewalks,
 } from '../libs/api_connection.js';
 
-// Define the shader code, using GLSL 3.00
 // Texture shaders
 import vsTex from '../assets/shaders/vs_multi_lights_attenuation.glsl?raw';
 import fsTex from '../assets/shaders/fs_multi_lights_attenuation.glsl?raw';
 
-// Import the models dictionaries
+// Models, materials and textures
 import {
+  // Models and materials
   buildingModels, hospitalModel,
   trafficLightModel,
   carModels, ambulanceModel,
-  destinationModel, roadStraightModel
-} from './random_objects.js';
+  destinationModel, roadStraightModel,
 
-// Import helper functions
+  // Textures
+  initTextures,
+  skyboxTexture, sidewalkTexture, simpleBuildingTexture,
+  simpleBuildingTextureA, simpleBuildingTextureB,
+  complexBuildingTexture, car1Texture,
+  car2Texture, car3Texture, ambulanceTexture,
+  greenTexture, redTexture,
+} from './objects.js';
+
+// Utils
 import {
-  createTexture,
-  getRotation,
   getLightsCloseToCamera,
+  assignModelToAgents,
+  getRotationByDirection,
+  getTrafficLightRotation,
+  createBaseModelWithMtl,
+  updateTrafficLights,
 } from './utils.js';
 
 // Create the 3D scene
@@ -66,10 +77,6 @@ let elapsed = 0;
 let then = 0;
 const NUM_LIGHTS = 8;
 
-// Global textures for traffic lights
-let greenTexture = undefined;
-let redTexture = undefined;
-
 // Main function is async to be able to make the requests
 async function main() {
   // Setup the canvas area
@@ -77,6 +84,9 @@ async function main() {
   gl = canvas.getContext('webgl2');
   twgl.resizeCanvasToDisplaySize(gl.canvas);
   gl.viewport(0, 0, gl.canvas.width, gl.canvas.height);
+
+  // Initialize textures with gl context
+  initTextures(gl);
 
   // Prepare the program with the shaders
   textureProgramInfo = twgl.createProgramInfo(gl, [vsTex, fsTex]);
@@ -135,20 +145,6 @@ function setupScene() {
 }
 
 function setupObjects(scene, gl) {
-  // Create textures used for the models
-  const skyboxTexture = createTexture(gl, '../assets/textures/Skybox/night.png');
-  const sidewalkTexture = createTexture(gl, '../assets/textures/Sidewalk/sidewalk.png');
-  const simpleBuildingTexture = createTexture(gl, '../assets/textures/Building/simple_buildings.png');
-  const simpleBuildingTextureB = createTexture(gl, '../assets/textures/Building/simple_buildings_b.png');
-  const simpleBuildingTextureA = createTexture(gl, '../assets/textures/Building/simple_buildings_a.png');
-  const complexBuildingTexture = createTexture(gl, '../assets/textures/Building/citybits_texture.png');
-  const car1Texture = createTexture(gl, '../assets/textures/Vehicles/car1.png');
-  const car2Texture = createTexture(gl, '../assets/textures/Vehicles/car2.png');
-  const car3Texture = createTexture(gl, '../assets/textures/Vehicles/car3.png');
-  const ambulanceTexture = createTexture(gl, '../assets/textures/Vehicles/ambulance.png');
-  greenTexture = createTexture(gl, '../assets/textures/Trafficlight/green.png');
-  redTexture = createTexture(gl, '../assets/textures/Trafficlight/red.png');
-
   // Cube with texture
   // Used for skybox and sidewalks
   const baseCubeTex = new Object3D(1);
@@ -171,209 +167,91 @@ function setupObjects(scene, gl) {
   scene.addObject(skybox);
 
   // Cars
-  const car1 = new Object3D(4);
-  const car2 = new Object3D(5);
-  const car3 = new Object3D(6);
+  const car1 = createBaseModelWithMtl(4, gl, textureProgramInfo, carModels[0].obj, carModels[0].mtl);
+  const car2 = createBaseModelWithMtl(5, gl, textureProgramInfo, carModels[1].obj, carModels[1].mtl);
+  const car3 = createBaseModelWithMtl(6, gl, textureProgramInfo, carModels[2].obj, carModels[2].mtl);
 
-  // Load MTLs for each car
-  loadMtl(carModels[0].mtl);
-  loadMtl(carModels[1].mtl);
-  loadMtl(carModels[2].mtl);
-
-  // Prepare VAOs for each car
-  car1.prepareVAO(gl, textureProgramInfo, carModels[0].obj);
-  car2.prepareVAO(gl, textureProgramInfo, carModels[1].obj);
-  car3.prepareVAO(gl, textureProgramInfo, carModels[2].obj);
-  car1.programType = 'texture';
-  car2.programType = 'texture';
-  car3.programType = 'texture';
+  const carModelsArray = [car1, car2, car3];
+  const carTexturesArray = [car1Texture, car2Texture, car3Texture];
 
   for (const agent of agents) {
     // Get random model
     const randomIndex = Math.floor(Math.random() * 3);
+    const car = carModelsArray[randomIndex];
 
-    // Assign the base obstacle according to the random index
-    const car = [car1, car2, car3][randomIndex];
-
-    // Set model info
-    agent.arrays = car.arrays;
-    agent.bufferInfo = car.bufferInfo;
-    agent.vao = car.vao;
-    
-    agent.scale = { x: 0.1, y: 0.1, z: 0.1 };
-    agent.color = [1.0, 1.0, 1.0, 1.0];
-    agent.shininess = 4.0;
-
-    // Apply rotation based on direction
-    if (agent.direction) {
-      const rotationY = getRotation(agent.oldPosArray, agent.posArray);
-      agent.rotRad.y = rotationY;
-      agent.rotDeg.y = rotationY * 180 / Math.PI;
-    }
-
-    // Assign texture based on random index
-    switch (randomIndex) {
-      case 0:
-        agent.texture = car1Texture;
-        break;
-      case 1:
-        agent.texture = car2Texture;
-        break;
-      case 2:
-        agent.texture = car3Texture;
-        break;
-      default:
-        agent.texture = car1Texture;
-    }
-    
-    agent.programType = 'texture';
+    // Assign model data
+    assignModelToAgents([agent], car, {
+      scale: { x: 0.1, y: 0.1, z: 0.1 },
+      color: [1.0, 1.0, 1.0, 1.0],
+      shininess: 4.0,
+      texture: carTexturesArray[randomIndex],
+      programType: 'texture',
+    });
 
     scene.addObject(agent);
   }
 
   // Ambulances
-  const ambulance = new Object3D(-4);
-  
-  // Load MTL for ambulance
-  loadMtl(ambulanceModel.mtl);
-
-  // Prepare VAO for ambulance
-  ambulance.prepareVAO(gl, textureProgramInfo, ambulanceModel.obj);
+  const ambulance = createBaseModelWithMtl(-4, gl, textureProgramInfo, ambulanceModel.obj, ambulanceModel.mtl);
 
   for (const agent of ambulances) {
-    // Set model info
-    agent.arrays = ambulance.arrays;
-    agent.bufferInfo = ambulance.bufferInfo;
-    agent.vao = ambulance.vao;
-
-    // Model config
-    agent.scale = { x: 0.1, y: 0.1, z: 0.1 };
-    agent.color = [1.0, 1.0, 1.0, 1.0];
-    agent.shininess = 4.0;
-    agent.texture = ambulanceTexture;
-    agent.programType = 'texture';
-
-    // Apply rotation based on direction
-    if (agent.direction) {
-      const rotationY = getRotation(agent.oldPosArray, agent.posArray);
-      agent.rotRad.y = rotationY;
-      agent.rotDeg.y = rotationY * 180 / Math.PI;
-      // Store the target rotation for smooth interpolation
-      agent.targetRotY = rotationY;
-      agent.oldRotY = rotationY;
-    }
+    assignModelToAgents([agent], ambulance, {
+      scale: { x: 0.1, y: 0.1, z: 0.1 },
+      color: [1.0, 1.0, 1.0, 1.0],
+      shininess: 4.0,
+      texture: ambulanceTexture,
+      programType: 'texture',
+    });
 
     scene.addObject(agent);
   }
 
   // Obstacles
-  const baseObstacle0 = new Object3D(7);
-  const baseObstacle1 = new Object3D(8);
-  const baseObstacle2 = new Object3D(9);
-  const baseObstacle3 = new Object3D(10);
-  const baseObstacle4 = new Object3D(11);
+  const baseObstacle0 = createBaseModelWithMtl(7, gl, textureProgramInfo, buildingModels[0].obj, buildingModels[0].mtl);
+  const baseObstacle1 = createBaseModelWithMtl(8, gl, textureProgramInfo, buildingModels[1].obj, buildingModels[1].mtl);
+  const baseObstacle2 = createBaseModelWithMtl(9, gl, textureProgramInfo, buildingModels[2].obj, buildingModels[2].mtl);
+  const baseObstacle3 = createBaseModelWithMtl(10, gl, textureProgramInfo, buildingModels[3].obj, buildingModels[3].mtl);
+  const baseObstacle4 = createBaseModelWithMtl(11, gl, textureProgramInfo, buildingModels[4].obj, buildingModels[4].mtl);
 
-  // Load MTLs for each building model
-  loadMtl(buildingModels[0].mtl);
-  loadMtl(buildingModels[1].mtl);
-  loadMtl(buildingModels[2].mtl);
-  loadMtl(buildingModels[3].mtl);
-  loadMtl(buildingModels[4].mtl);
+  const baseObstacles = [
+    baseObstacle0, baseObstacle1, 
+    baseObstacle2, baseObstacle3,
+    baseObstacle4,
+  ];
 
-  // Prepare VAOs for each building model
-  baseObstacle0.prepareVAO(gl, textureProgramInfo, buildingModels[0].obj);
-  baseObstacle1.prepareVAO(gl, textureProgramInfo, buildingModels[1].obj);
-  baseObstacle2.prepareVAO(gl, textureProgramInfo, buildingModels[2].obj);
-  baseObstacle3.prepareVAO(gl, textureProgramInfo, buildingModels[3].obj);
-  baseObstacle4.prepareVAO(gl, textureProgramInfo, buildingModels[4].obj);
-  baseObstacle0.programType = 'texture';
-  baseObstacle1.programType = 'texture';
-  baseObstacle2.programType = 'texture';
-  baseObstacle3.programType = 'texture';
-  baseObstacle4.programType = 'texture';
+  // Building configuration by type
+  const buildingConfigs = [
+    { scale: { x: 1, y: 1.2, z: 1 }, shininess: 16.0, texture: simpleBuildingTexture },
+    { scale: { x: 1, y: 1.2, z: 1 }, shininess: 16.0, texture: simpleBuildingTextureB },
+    { scale: { x: 0.35, y: 0.5, z: 0.35 }, shininess: 32.0, texture: complexBuildingTexture },
+    { scale: { x: 0.35, y: 0.5, z: 0.35 }, shininess: 32.0, texture: complexBuildingTexture },
+    { scale: { x: 1, y: 1.5, z: 1 }, shininess: 16.0, texture: simpleBuildingTextureA },
+  ];
 
   for (const agent of obstacles) {
-    // Get random model
     const randomIndex = Math.floor(Math.random() * 5);
+    const baseObstacle = baseObstacles[randomIndex];
+    const config = buildingConfigs[randomIndex];
 
-    // Assign the base obstacle according to the random index
-    const baseObstacle = [
-      baseObstacle0, baseObstacle1, 
-      baseObstacle2, baseObstacle3,
-      baseObstacle4,
-    ][randomIndex];
+    assignModelToAgents([agent], baseObstacle, {
+      ...config,
+      color: [1.0, 1.0, 1.0, 1.0],
+      programType: 'texture',
+    });
 
-    // Set model info
-    agent.arrays = baseObstacle.arrays;
-    agent.bufferInfo = baseObstacle.bufferInfo;
-    agent.vao = baseObstacle.vao;
-
-    // Model config
-    switch (randomIndex) {
-      case 0:
-        agent.scale = { x: 1, y: 1.2, z: 1 };
-        agent.color = [1.0, 1.0, 1.0, 1.0];
-        agent.shininess = 16.0;
-        agent.texture = simpleBuildingTexture;
-        break;
-      case 1:
-        agent.scale = { x: 1, y: 1.2, z: 1 };
-        agent.color = [1.0, 1.0, 1.0, 1.0];
-        agent.shininess = 16.0;
-        agent.texture = simpleBuildingTextureB;
-        break;
-      case 2:
-      case 3:
-        agent.scale = { x: 0.35, y: 0.5, z: 0.35 };
-        agent.color = [1.0, 1.0, 1.0, 1.0];
-        agent.shininess = 32.0;
-        agent.texture = complexBuildingTexture;
-        break;
-      case 4:
-        agent.scale = { x: 1, y: 1.5, z: 1 };
-        agent.color = [1.0, 1.0, 1.0, 1.0];
-        agent.shininess = 16.0;
-        agent.texture = simpleBuildingTextureA;
-        break;
-    }
-
-    agent.programType = 'texture';
     scene.addObject(agent);
   }
 
   // Traffic Lights
-  loadMtl(trafficLightModel.mtl);
-
-  const baseTrafficLight = new Object3D(12);
-  baseTrafficLight.prepareVAO(gl, textureProgramInfo, trafficLightModel.obj);
+  const baseTrafficLight = createBaseModelWithMtl(12, gl, textureProgramInfo, trafficLightModel.obj, trafficLightModel.mtl);
 
   for (const agent of trafficLights) {
-    agent.arrays = baseTrafficLight.arrays;
-    agent.bufferInfo = baseTrafficLight.bufferInfo;
-    agent.vao = baseTrafficLight.vao;
-
-    agent.scale = { x: 1, y: 1, z: 1 };
-
-    // Adjust position and rotation based on direction
-    switch (agent.direction) {
-      case "Right":
-        agent.rotRad = { x: 0, y: Math.PI * 3 / 2, z: 0 }; // 270 degrees
-        break;
-      case "Left":
-        agent.rotRad = { x: 0, y: Math.PI * 3 / 2, z: 0 }; // 270 degrees
-        break;
-      case "Up":
-        agent.rotRad = { x: 0, y: Math.PI, z: 0 }; // No rotation
-        break;
-      case "Down":
-        agent.rotRad = { x: 0, y: Math.PI, z: 0 }; // No rotation
-        break;
-      default:
-        agent.rotRad = { x: 0, y: 0, z: 0 };
-    }
-
-    agent.programType = 'texture';
-    agent.texture = complexBuildingTexture;
+    assignModelToAgents([agent], baseTrafficLight, {
+      scale: { x: 1, y: 1, z: 1 },
+      programType: 'texture',
+      texture: complexBuildingTexture,
+      rotRad: getTrafficLightRotation(agent.direction),
+    });
 
     scene.addObject(agent);
   }
@@ -469,94 +347,52 @@ function setupObjects(scene, gl) {
   }
 
   // Roads
-  loadMtl(roadStraightModel.mtl);
-
-  const baseRoadStraight = new Object3D(14);
-  baseRoadStraight.prepareVAO(gl, textureProgramInfo, roadStraightModel.obj);
+  const baseRoadStraight = createBaseModelWithMtl(14, gl, textureProgramInfo, roadStraightModel.obj, roadStraightModel.mtl);
 
   for (const agent of roads) {
-    // Set model info
-    agent.arrays = baseRoadStraight.arrays;
-    agent.bufferInfo = baseRoadStraight.bufferInfo;
-    agent.vao = baseRoadStraight.vao;
-
-    // Model config
-    agent.scale = { x: 0.5, y: 1, z: 0.5 };
-    agent.programType = 'texture';
-    agent.texture = complexBuildingTexture;
-
-    // Set rotation based on direction
-    switch (agent.direction) {
-      case "Right":
-      case "Left":
-        // Rotate 90 degrees
-        agent.rotRad = { x: 0, y: Math.PI / 2, z: 0 };
-        break;
-      case "Up":
-      case "Down":
-        // No rotation
-        agent.rotRad = { x: 0, y: 0, z: 0 };
-        break;
-      default:
-        // By default, no rotation
-        agent.rotRad = { x: 0, y: 0, z: 0 };
-    }
+    assignModelToAgents([agent], baseRoadStraight, {
+      scale: { x: 0.5, y: 1, z: 0.5 },
+      programType: 'texture',
+      texture: complexBuildingTexture,
+      rotRad: getRotationByDirection(agent.direction),
+    });
 
     scene.addObject(agent);
   }
 
   // Sidewalks
   for (const agent of sidewalks) {
-    // Set model info
-    agent.arrays = baseCubeTex.arrays;
-    agent.bufferInfo = baseCubeTex.bufferInfo;
-    agent.vao = baseCubeTex.vao;
-
-    // Model config
-    agent.scale = { x: 0.25, y: 0.1, z: 0.25 };
-    agent.programType = 'texture';
-    agent.texture = sidewalkTexture;
+    assignModelToAgents([agent], baseCubeTex, {
+      scale: { x: 0.25, y: 0.1, z: 0.25 },
+      programType: 'texture',
+      texture: sidewalkTexture,
+    });
 
     scene.addObject(agent);
   }
 
-  // Load MTL for hospital model
-  loadMtl(hospitalModel.mtl);
-
-  // Prepare VAO for hospital model
-  const baseHospital = new Object3D(15);
-  baseHospital.prepareVAO(gl, textureProgramInfo, hospitalModel.obj);
+  // Hospitals
+  const baseHospital = createBaseModelWithMtl(15, gl, textureProgramInfo, hospitalModel.obj, hospitalModel.mtl);
 
   for (const agent of hospitals) {
-    // Set model info
-    agent.arrays = baseHospital.arrays;
-    agent.bufferInfo = baseHospital.bufferInfo;
-    agent.vao = baseHospital.vao;
-
-    // Model config
-    agent.scale = { x: 1.6, y: 0.8, z: 1.6 };
-    agent.programType = 'texture';
-    agent.texture = simpleBuildingTexture;
+    assignModelToAgents([agent], baseHospital, {
+      scale: { x: 1.6, y: 0.8, z: 1.6 },
+      programType: 'texture',
+      texture: simpleBuildingTexture,
+    });
 
     scene.addObject(agent);
   }
 
   // Destinations
-  loadMtl(destinationModel.mtl);
-
-  const baseDestination = new Object3D(16);
-  baseDestination.prepareVAO(gl, textureProgramInfo, destinationModel.obj);
+  const baseDestination = createBaseModelWithMtl(16, gl, textureProgramInfo, destinationModel.obj, destinationModel.mtl);
 
   for (const agent of destinations) {
-    // Set model info
-    agent.arrays = baseDestination.arrays;
-    agent.bufferInfo = baseDestination.bufferInfo;
-    agent.vao = baseDestination.vao;
-
-    // Model config
-    agent.scale = { x: 2, y: 2, z: 2 };
-    agent.programType = 'texture';
-    agent.texture = simpleBuildingTexture;
+    assignModelToAgents([agent], baseDestination, {
+      scale: { x: 2, y: 2, z: 2 },
+      programType: 'texture',
+      texture: simpleBuildingTexture,
+    });
 
     scene.addObject(agent);
   }
@@ -586,7 +422,7 @@ function drawObjectTextured(gl, programInfo, object, viewProjectionMatrix, fract
   if (newRot !== undefined && oldRot !== undefined) {
     let deltaRot = newRot - oldRot;
 
-    // Wrap around if the difference is greater than 180 degrees (in radians)
+    // Wrap around if the difference is greater than 180 degrees
     if (deltaRot > Math.PI) {
       deltaRot -= 2 * Math.PI;
     } else if (deltaRot < -Math.PI) {
@@ -643,82 +479,8 @@ async function drawScene() {
   let fract = Math.min(1.0, elapsed / duration);
   then = now;
 
-  // Update trafficlight lights each frame
-  for (const tl of trafficLights) {
-    if (tl.light) {
-      const pos = tl.position;
-      const heightOffset = pos.y + 0.8;
-
-      // Get offset based on direction
-      let offsetX = 0;
-      let offsetZ = 0;
-
-      switch (tl.direction) {
-        case "Right":
-          offsetZ = -0.65;
-          break;
-        case "Left":
-          offsetZ = -0.65;
-          break;
-        case "Up":
-          offsetX = 0.65;
-          break;
-        case "Down":
-          offsetX = 0.65;
-          break;
-      }
-
-      // Update light position
-      tl.light.position = {
-        x: pos.x + offsetX,
-        y: heightOffset,
-        z: pos.z + offsetZ
-      };
-
-      // Update light color based on current state
-      const lightColor = tl.state
-        ? [0.0, 0.8, 0.0, 1.0] // Green
-        : [0.8, 0.0, 0.0, 1.0]; // Red
-
-      tl.light.diffuse = lightColor;
-      tl.light.specular = lightColor;
-    }
-
-    // Update light cube position and color
-    if (tl.lightCube) {
-      // Get offset based on direction
-      let offsetX = 0;
-      let offsetZ = 0;
-
-      switch (tl.direction) {
-        case "Right":
-          offsetZ = -0.65;
-          break;
-        case "Left":
-          offsetZ = -0.65;
-          break;
-        case "Up":
-          offsetX = 0.65;
-          break;
-        case "Down":
-          offsetX = 0.65;
-          break;
-      }
-
-      tl.lightCube.position = {
-        x: tl.position.x + offsetX,
-        y: tl.position.y + 0.9,
-        z: tl.position.z + offsetZ
-      };
-
-      // Update cube texture based on state
-      if (tl.state) {
-        tl.lightCube.texture = greenTexture;
-      } else {
-        tl.lightCube.texture = redTexture;
-      }
-    }
-  }
+  // Update traffic lights each frame
+  updateTrafficLights(trafficLights, greenTexture, redTexture);
 
   // Clear the canvas
   gl.clearColor(0, 0, 0, 1);
@@ -733,26 +495,20 @@ async function drawScene() {
 
   // Texture shader
 
-  // Get closest lights to camera
-  const closeLights = getLightsCloseToCamera(NUM_LIGHTS, scene);
+  // Only consider scene lights without global light
+  const sceneLights = scene.lights.slice(1);
 
-  // Prepare light arrays
+  // Prepare light arrays for the shader
   let lightPositions = [];
   let diffuseLights = [];
   let specularLights = [];
 
   // Get global light
   const globalLight = scene.lights[0];
-  
-  // Add global light first to position array (for v_surfaceToLight[0])
   lightPositions.push(...globalLight.posArray);
 
-  // Add all scene lights
-  for (let i = 0; i < closeLights.length; i++) {
-    // Get current light
-    const light = closeLights[i];
-
-    // Add light properties to arrays
+  // Add the rest of the lights to the arrays
+  for (const light of sceneLights) {
     lightPositions.push(...light.posArray);
     diffuseLights.push(...light.diffuse);
     specularLights.push(...light.specular);
@@ -788,24 +544,6 @@ async function drawScene() {
   if (elapsed >= duration) {
     elapsed = 0;
     await update();
-
-    // Update rotation of all agents based on their direction
-    for (const agent of agents) {
-      if (agent.direction) {
-        const rotationY = getRotation(agent.oldPosArray, agent.posArray);
-        agent.rotRad.y = rotationY;
-        agent.rotDeg.y = rotationY * 180 / Math.PI;
-      }
-    }
-
-    // Update rotation of ambulances
-    for (const ambulance of ambulances) {
-      if (ambulance.direction) {
-        const rotationY = getRotation(ambulance.oldPosArray, ambulance.posArray);
-        ambulance.rotRad.y = rotationY;
-        ambulance.rotDeg.y = rotationY * 180 / Math.PI;
-      }
-    }
   }
   
   requestAnimationFrame(drawScene);
@@ -835,7 +573,7 @@ function setupUI() {
   const gui = new GUI();
 
   // By default, the GUI is closed
-  gui.close();
+  // gui.close();
 
   // Camera
   const cameraFolder = gui.addFolder('Camera');
@@ -859,13 +597,46 @@ function setupUI() {
   const actionsFolder = gui.addFolder('Actions');
   // Actions object
   const actions = {
+    trackCar: function() {
+      if (agents.length > 0) {
+        // Get random car
+        const randomIdx = Math.floor(Math.random() * agents.length);
+        const car = agents[randomIdx];
+        scene.camera.setTargetObject(car);
+        scene.camera.distance = 1;
+        scene.camera.elevation = 1.5;
+        scene.camera.panOffset = [0, 5, 0];
+      }
+    },
     trackAmbulance: function() {
       if (ambulances.length > 0) {
-        scene.camera.setTargetObject(ambulances[0]);
+        // Get random ambulance
+        const randomIdx = Math.floor(Math.random() * ambulances.length);
+        const ambulance = ambulances[randomIdx];
+        scene.camera.setTargetObject(ambulance);
+        scene.camera.distance = 1;
+        scene.camera.elevation = 1.5;
+        scene.camera.panOffset = [0, 5, 0];
       }
+    },
+    stopTracking: function() {
+      scene.camera.setTargetObject(null);
+    },
+    resetCamera: function() {
+      scene.camera.setTargetObject(null);
+      scene.camera.distance = 10;
+      scene.camera.elevation = 0.6;
+      scene.camera.azimuth = 4;
+      scene.camera.panOffset = [0, 8, 0];
+      scene.camera.target = { x: 0, y: 0, z: 0 };
     }
   };
-  actionsFolder.add(actions, 'trackAmbulance').name('Track Ambulance');
+
+  // Add actions to the folder
+  actionsFolder.add(actions, 'trackCar').name('Track Random Car');
+  actionsFolder.add(actions, 'trackAmbulance').name('Track Random Ambulance');
+  actionsFolder.add(actions, 'stopTracking').name('Stop Tracking');
+  actionsFolder.add(actions, 'resetCamera').name('Reset Camera');
 }
 
 main();
