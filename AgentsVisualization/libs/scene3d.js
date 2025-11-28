@@ -23,6 +23,10 @@ class Scene3D {
     addObject(object) {
         this.objects.push(object);
     }
+
+    removeObject(objectId) {
+        this.objects = this.objects.filter(obj => obj.id != objectId);
+    }
 };
 
 export { Scene3D };

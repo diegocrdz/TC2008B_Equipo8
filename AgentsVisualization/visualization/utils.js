@@ -20,7 +20,33 @@ export function createTexture(gl, src) {
 }
 
 // Function that gets the direction of a car and returns the correct rotation
-export function getRotationFromDirection(direction) {
+export function getRotation(oldPos, newPos) {
+  const dx = newPos[0] - oldPos[0];
+  const dz = newPos[2] - oldPos[2];
+
+  // If no movement, return null to keep previous rotation
+  if (Math.abs(dx) == 0 && Math.abs(dz) == 0) {
+    return null;
+  }
+
+  let direction = "";
+
+  if (Math.abs(dx) > Math.abs(dz)) {
+    // Horizontal movement (left/right)
+    if (dx > 0) {
+      direction = "Right";
+    } else {
+      direction = "Left";
+    }
+  } else {
+    // Forward/backward movement (up/down in grid)
+    if (dz > 0) {
+      direction = "Up";
+    } else {
+      direction = "Down";
+    }
+  }
+
   switch (direction) {
     case "Right":
       return Math.PI / 2; // 90 degrees

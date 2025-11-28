@@ -24,7 +24,7 @@ import { loadMtl } from '../libs/obj_loader.js';
 
 // Functions and arrays for the communication with the API
 import {
-  initAgentsModel, update,
+  initAgentsModel, update, setScene,
   agents, getAgents,
   ambulances, getAmbulances,
   obstacles, getObstacles,
@@ -51,7 +51,7 @@ import {
 // Import helper functions
 import {
   createTexture,
-  getRotationFromDirection,
+  getRotation,
   getLightsCloseToCamera,
 } from './utils.js';
 
@@ -61,10 +61,10 @@ const scene = new Scene3D();
 // Global variables
 let textureProgramInfo = undefined;
 let gl = undefined;
-const duration = 200; // ms
+const duration = 500; // ms
 let elapsed = 0;
 let then = 0;
-const NUM_LIGHTS = 20;
+const NUM_LIGHTS = 8;
 
 // Global textures for traffic lights
 let greenTexture = undefined;
@@ -96,6 +96,9 @@ async function main() {
 
   // Initialize the scene
   setupScene();
+  
+  // Set the global scene reference for API connection
+  setScene(scene);
 
   // Position the objects in the scene
   setupObjects(scene, gl);
@@ -124,8 +127,8 @@ function setupScene() {
   // Create global light
   let light = new Light3D(
     [50, 4, 50],          // Position
-    [0.5, 0.5, 0.5, 1.0], // Ambient
-    [0.5, 0.5, 0.5, 1.0], // Diffuse
+    [0.4, 0.4, 1.0, 1.0], // Ambient
+    [0.2, 0.2, 0.2, 1.0], // Diffuse
     [0.5, 0.5, 0.5, 1.0], // Specular
   );
   scene.addLight(light);
@@ -203,7 +206,7 @@ function setupObjects(scene, gl) {
 
     // Apply rotation based on direction
     if (agent.direction) {
-      const rotationY = getRotationFromDirection(agent.direction);
+      const rotationY = getRotation(agent.oldPosArray, agent.posArray);
       agent.rotRad.y = rotationY;
       agent.rotDeg.y = rotationY * 180 / Math.PI;
     }
@@ -252,9 +255,12 @@ function setupObjects(scene, gl) {
 
     // Apply rotation based on direction
     if (agent.direction) {
-      const rotationY = getRotationFromDirection(agent.direction);
+      const rotationY = getRotation(agent.oldPosArray, agent.posArray);
       agent.rotRad.y = rotationY;
       agent.rotDeg.y = rotationY * 180 / Math.PI;
+      // Store the target rotation for smooth interpolation
+      agent.targetRotY = rotationY;
+      agent.oldRotY = rotationY;
     }
 
     scene.addObject(agent);
@@ -558,7 +564,7 @@ function setupObjects(scene, gl) {
 
 // Function to draw an object with texture
 function drawObjectTextured(gl, programInfo, object, viewProjectionMatrix, fract) {
-  // Calculate interpolation
+  // Calculate interpolation for position
   const newPos = object.posArray;
   const oldPos = object.oldPosArray || newPos; // In the first frame oldPosArray is undefined
 
@@ -571,10 +577,30 @@ function drawObjectTextured(gl, programInfo, object, viewProjectionMatrix, fract
   ];
   let v3_sca = object.scaArray;
 
+  // Calculate interpolation for rotation
+  const newRot = object.targetRotY;
+  const oldRot = object.oldRotY;
+  
+  // Handle rotation interpolation with angle wrapping (only for agents with targetRotY)
+  let rotY = object.rotRad.y; // Default to current rotation
+  if (newRot !== undefined && oldRot !== undefined) {
+    let deltaRot = newRot - oldRot;
+
+    // Wrap around if the difference is greater than 180 degrees (in radians)
+    if (deltaRot > Math.PI) {
+      deltaRot -= 2 * Math.PI;
+    } else if (deltaRot < -Math.PI) {
+      deltaRot += 2 * Math.PI;
+    }
+
+    // Interpolate rotation
+    rotY = oldRot + deltaRot * fract;
+  }
+
   // Create the individual transform matrices
   const scaMat = M4.scale(v3_sca);
   const rotXMat = M4.rotationX(object.rotRad.x);
-  const rotYMat = M4.rotationY(object.rotRad.y);
+  const rotYMat = M4.rotationY(rotY);
   const rotZMat = M4.rotationZ(object.rotRad.z);
   const traMat = M4.translation(v3_tra);
 
@@ -715,6 +741,12 @@ async function drawScene() {
   let diffuseLights = [];
   let specularLights = [];
 
+  // Get global light
+  const globalLight = scene.lights[0];
+  
+  // Add global light first to position array (for v_surfaceToLight[0])
+  lightPositions.push(...globalLight.posArray);
+
   // Add all scene lights
   for (let i = 0; i < closeLights.length; i++) {
     // Get current light
@@ -731,6 +763,8 @@ async function drawScene() {
     u_lightWorldPosition: lightPositions,
  
     u_ambientLight: scene.lights[0].ambient,
+    u_globalDiffuseLight: globalLight.diffuse,
+    u_globalSpecularLight: globalLight.specular,
     u_diffuseLight: diffuseLights,
     u_specularLight: specularLights,
     
@@ -758,7 +792,7 @@ async function drawScene() {
     // Update rotation of all agents based on their direction
     for (const agent of agents) {
       if (agent.direction) {
-        const rotationY = getRotationFromDirection(agent.direction);
+        const rotationY = getRotation(agent.oldPosArray, agent.posArray);
         agent.rotRad.y = rotationY;
         agent.rotDeg.y = rotationY * 180 / Math.PI;
       }
@@ -767,7 +801,7 @@ async function drawScene() {
     // Update rotation of ambulances
     for (const ambulance of ambulances) {
       if (ambulance.direction) {
-        const rotationY = getRotationFromDirection(ambulance.direction);
+        const rotationY = getRotation(ambulance.oldPosArray, ambulance.posArray);
         ambulance.rotRad.y = rotationY;
         ambulance.rotDeg.y = rotationY * 180 / Math.PI;
       }
