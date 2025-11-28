@@ -1,7 +1,8 @@
 #version 300 es
 precision highp float;
 
-const int NUM_LIGHTS = 20;
+// Max number of lights
+const int NUM_LIGHTS = 27;
 
 in vec4 v_position;
 in vec3 v_normal;
@@ -19,7 +20,11 @@ uniform sampler2D u_texture;
 
 uniform vec3 u_lightWorldPosition[NUM_LIGHTS];
 
+// Global light components
 uniform vec4 u_ambientLight;
+uniform vec4 u_globalDiffuseLight;
+uniform vec4 u_globalSpecularLight;
+
 uniform vec4 u_diffuseLight[NUM_LIGHTS];
 uniform vec4 u_specularLight[NUM_LIGHTS];
 
@@ -45,7 +50,22 @@ void main() {
     vec4 diffuseColor = vec4(0, 0, 0, 1);
     vec4 specularColor = vec4(0, 0, 0, 1);
 
-    for (int i=0; i<NUM_LIGHTS; i++) {
+    // First apply global light with no attenuation
+    vec3 globalLightDirection = normalize(-v_surfaceToLight[0]); // Direction from surface to light
+    vec3 globalReflectionVector = 2.0 * dot(globalLightDirection, normal) * normal - globalLightDirection;
+    
+    float globalLight = max(dot(normal, globalLightDirection), 0.0);
+    float globalSpecular = 0.0;
+    if (globalLight > 0.0) {
+        float specular_dot = dot(surfToViewDirection, globalReflectionVector);
+        globalSpecular = pow(max(specular_dot, 0.0), u_shininess);
+    }
+    
+    diffuseColor += globalLight * color * u_globalDiffuseLight;
+    specularColor += globalSpecular * color * u_globalSpecularLight;
+
+    // Apply lights with attenuation
+    for (int i=1; i<NUM_LIGHTS; i++) {
         // attenuation
         float distance = length(v_surfaceToLight[i]);
         float attenuation = 1.0 / (u_constant + u_linear * distance + u_quadratic * (distance * distance));

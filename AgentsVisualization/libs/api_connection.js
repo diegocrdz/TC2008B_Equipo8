@@ -8,6 +8,7 @@
 'use strict';
 
 import { Object3D, TrafficLight, Road } from '../libs/object3d';
+import { getRotation } from '../visualization/utils.js';
 
 // Define the agent server URI
 const agent_server_uri = "http://localhost:8585/";
@@ -22,6 +23,9 @@ const destinations = [];
 const sidewalks = [];
 const ambulances = [];
 
+// Global scene reference for removing objects
+let globalScene = null;
+
 // Define the data object
 const initData = {
     NAgents: 20,
@@ -30,6 +34,13 @@ const initData = {
 };
 
 /* FUNCTIONS FOR THE INTERACTION WITH THE MESA SERVER */
+
+/*
+ * Sets the global scene reference for removing objects.
+ */
+function setScene(scene) {
+    globalScene = scene;
+}
 
 /*
  * Initializes the agents model by sending a POST request to the agent server.
@@ -69,6 +80,20 @@ async function getAgents() {
             // Parse the response as JSON
             let result = await response.json();
 
+            // Remove agents that no longer exist
+            if (result.removed) {
+                for (const removedId of result.removed) {
+                    const index = agents.findIndex((agent) => agent.id == removedId);
+                    if (index !== -1) {
+                        agents.splice(index, 1);
+                        // Also remove from scene if available
+                        if (globalScene) {
+                            globalScene.removeObject(removedId);
+                        }
+                    }
+                }
+            }
+
             // Check if the agents array is empty
             if (agents.length == 0) {
                 // Create new agents and add them to the agents array
@@ -78,6 +103,10 @@ async function getAgents() {
                     newAgent['oldPosArray'] = newAgent.posArray;
                     // Store the direction
                     newAgent['direction'] = agent.direction;
+                    // Initialize the rotation using initial position
+                    const rotationY = getRotation(newAgent.posArray, newAgent.posArray);
+                    newAgent['oldRotY'] = rotationY;
+                    newAgent['targetRotY'] = rotationY;
                     agents.push(newAgent);
                 }
 
@@ -91,12 +120,27 @@ async function getAgents() {
                         // Update the agent's position
                         current_agent.oldPosArray = current_agent.posArray;
                         current_agent.position = {x: agent.x, y: agent.y, z: agent.z};
-                        // Update the direction
+                        // Update the direction and rotation
+                        current_agent.oldRotY = current_agent.targetRotY;
                         current_agent.direction = agent.direction;
+                        const rotationY = getRotation(current_agent.oldPosArray, current_agent.posArray);
+                        // Only update target rotation if there was actual movement
+                        if (rotationY !== null) {
+                            current_agent.targetRotY = rotationY;
+                        }
+                    } else {
+                        // If the agent does not exist, create it
+                        const newAgent = new Object3D(agent.id, [agent.x, agent.y, agent.z]);
+                        // Store the initial position
+                        newAgent['oldPosArray'] = newAgent.posArray;
+                        // Store the direction
+                        newAgent['direction'] = agent.direction;
+                        // Initialize the rotation
+                        const rotationY = getRotation(newAgent.posArray, newAgent.posArray);
+                        newAgent['oldRotY'] = rotationY;
+                        newAgent['targetRotY'] = rotationY;
+                        agents.push(newAgent);
                     }
-
-                    //console.log("OLD: ", current_agent.oldPosArray,
-                    //            " NEW: ", current_agent.posArray);
                 }
             }
         }
@@ -120,6 +164,20 @@ async function getAmbulances() {
             // Parse the response as JSON
             let result = await response.json();
 
+            // Remove ambulances that no longer exist
+            if (result.removed) {
+                for (const removedId of result.removed) {
+                    const index = ambulances.findIndex((ambulance) => ambulance.id == removedId);
+                    if (index !== -1) {
+                        ambulances.splice(index, 1);
+                        // Also remove from scene if available
+                        if (globalScene) {
+                            globalScene.removeObject(removedId);
+                        }
+                    }
+                }
+            }
+
             // Check if the ambulances array is empty
             if (ambulances.length == 0) {
                 // Create new ambulances and add them to the ambulances array
@@ -129,6 +187,10 @@ async function getAmbulances() {
                     newAgent['oldPosArray'] = newAgent.posArray;
                     // Store the direction
                     newAgent['direction'] = agent.direction;
+                    // Store the rotation
+                    const rotationY = getRotation(newAgent.posArray, newAgent.posArray);
+                    newAgent['oldRotY'] = rotationY;
+                    newAgent['targetRotY'] = rotationY;
                     ambulances.push(newAgent);
                 }
 
@@ -142,8 +204,26 @@ async function getAmbulances() {
                         // Update the ambulance's position
                         current_ambulance.oldPosArray = current_ambulance.posArray;
                         current_ambulance.position = {x: agent.x, y: agent.y, z: agent.z};
-                        // Update the direction
+                        // Update the direction and rotation
+                        current_ambulance.oldRotY = current_ambulance.targetRotY;
                         current_ambulance.direction = agent.direction;
+                        const rotationY = getRotation(current_ambulance.oldPosArray, current_ambulance.posArray);
+                        // Only update target rotation if there was actual movement
+                        if (rotationY !== null) {
+                            current_ambulance.targetRotY = rotationY;
+                        }
+                    } else {
+                        // If the ambulance does not exist, create it
+                        const newAgent = new Object3D(agent.id, [agent.x, agent.y, agent.z]);
+                        // Store the initial position
+                        newAgent['oldPosArray'] = newAgent.posArray;
+                        // Store the direction
+                        newAgent['direction'] = agent.direction;
+                        // Store the rotation
+                        const rotationY = getRotation(newAgent.posArray, newAgent.posArray);
+                        newAgent['oldRotY'] = rotationY;
+                        newAgent['targetRotY'] = rotationY;
+                        ambulances.push(newAgent);
                     }
                 }
             }
@@ -429,7 +509,7 @@ async function update() {
 }
 
 export {
-    initAgentsModel, update,
+    initAgentsModel, update, setScene,
     agents, getAgents,
     ambulances, getAmbulances,
     obstacles, getObstacles,

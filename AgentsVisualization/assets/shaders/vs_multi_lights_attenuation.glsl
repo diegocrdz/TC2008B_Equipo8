@@ -3,7 +3,8 @@ in vec4 a_position;
 in vec3 a_normal;
 in vec2 a_texCoord;
 
-const int NUM_LIGHTS = 20;
+// Max number of lights
+const int NUM_LIGHTS = 27;
 
 uniform vec3 u_lightWorldPosition[NUM_LIGHTS];
 uniform vec3 u_viewWorldPosition;

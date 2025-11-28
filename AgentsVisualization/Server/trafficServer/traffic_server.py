@@ -19,6 +19,8 @@ width = 28
 height = 28
 randomModel = None
 currentStep = 0
+previous_agent_ids = set()  # Track previous agent IDs to detect removals
+previous_ambulance_ids = set()  # Track previous ambulance IDs to detect removals
 
 # This application will be used to interact with Unity
 app = Flask("Traffic example")
@@ -54,7 +56,7 @@ def initModel():
 @app.route('/getAgents', methods=['GET'])
 @cross_origin()
 def getAgents():
-    global randomModel
+    global randomModel, previous_agent_ids
 
     if request.method == 'GET':
         # Get the positions of the agents and return them to WebGL in JSON.json.t.
@@ -64,7 +66,6 @@ def getAgents():
             agentCells = randomModel.grid.all_cells.select(
                 lambda cell: any(isinstance(obj, CarAgent) for obj in cell.agents)
             ).cells
-            # print(f"CELLS: {agentCells}")
 
             agents = [
                 (cell.coordinate, agent)
@@ -72,7 +73,6 @@ def getAgents():
                 for agent in cell.agents
                 if isinstance(agent, CarAgent)
             ]
-            # print(f"AGENTS: {agents}")
 
             agentPositions = [
                 {
@@ -84,9 +84,17 @@ def getAgents():
                 }
                 for (coordinate, a) in agents
             ]
-            # print(f"AGENT POSITIONS: {agentPositions}")
+            
+            # Get current agent IDs
+            current_agent_ids = {agent["id"] for agent in agentPositions}
+            
+            # Find removed agents
+            removed_agent_ids = list(previous_agent_ids - current_agent_ids)
+            
+            # Update tracking
+            previous_agent_ids = current_agent_ids
 
-            return jsonify({'positions': agentPositions})
+            return jsonify({'positions': agentPositions, 'removed': removed_agent_ids})
         except Exception as e:
             print(e)
             return jsonify({"message": "Error with the agent positions"}), 500
@@ -95,7 +103,7 @@ def getAgents():
 @app.route('/getAmbulances', methods=['GET'])
 @cross_origin()
 def getAmbulances():
-    global randomModel
+    global randomModel, previous_ambulance_ids
 
     if request.method == 'GET':
         try:
@@ -103,7 +111,6 @@ def getAmbulances():
             ambulanceCells = randomModel.grid.all_cells.select(
                 lambda cell: any(isinstance(obj, Ambulance) for obj in cell.agents)
             )
-            # print(f"CELLS: {agentCells}")
 
             ambulances = [
                 (cell.coordinate, agent)
@@ -122,8 +129,17 @@ def getAmbulances():
                 }
                 for (coordinate, a) in ambulances
             ]
+            
+            # Get current ambulance IDs
+            current_ambulance_ids = {ambulance["id"] for ambulance in ambulancePositions}
+            
+            # Find removed ambulances
+            removed_ambulance_ids = list(previous_ambulance_ids - current_ambulance_ids)
+            
+            # Update tracking
+            previous_ambulance_ids = current_ambulance_ids
 
-            return jsonify({'positions': ambulancePositions})
+            return jsonify({'positions': ambulancePositions, 'removed': removed_ambulance_ids})
         except Exception as e:
             print(e)
             return jsonify({"message": "Error with ambulance positions"}), 500

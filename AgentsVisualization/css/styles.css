@@ -14,15 +14,15 @@ body {
 
 #headerContainer{
   position: absolute;
-  top: 15px;
+  top: 10px;
   left: 50%; /* Centrar horizontalmente */
   transform: translateX(-50%); /* Ajustar para centrar */
-  background-color: rgba(60, 102, 185, 0.2);
+  background-color: rgba(46, 46, 46, 0.273);
   color: white;
-  width: 90%;
-  height: 60px;
-  border: 1px solid rgba(255, 255, 255, 0.379);
-  border-radius: 20px;
+  width: max-content;
+  height: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.168);
+  border-radius: 30px;
   margin: 0;
   display: flex;
   flex-direction: row;
@@ -35,12 +35,38 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 5px 40px; /* Espacio interno a los lados */
+  gap: 5em;
+  padding: 5px 8px; /* Espacio interno a los lados */
 }
 
-h1{
+#headerContainer div {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.header-item {
   margin: 0px;
-  font-size: 1.2rem;
+  font-size: 0.8em;
+  background: rgba(46, 46, 46, 0.273);
+  border: 1px solid rgba(255, 255, 255, 0.168);
+  border-radius: 15px;
+  padding: 5px 15px;
+  user-select: none;
+}
+
+.header-btn {
+  margin: 0px;
+  font-size: 0.8em;
+  background: rgba(211, 211, 211, 0.273);
+  border: 1px solid rgba(255, 255, 255, 0.168);
+  border-radius: 15px;
+  padding: 5px 15px;
+  text-decoration: none;
+  color: white;
+}
+.header-btn:hover {
+  background: rgba(211, 211, 211, 0.5);
 }
 
 canvas {
@@ -57,11 +83,28 @@ canvas {
   height: 100vh;
 }
 
-.lil-gui.autoPlace{
-  top: 15vh;
-  right: 5vw;
-}
-
 #backButton {
     margin: 10px;
+}
+
+/*
+Estilos para lil-gui
+https://lil-gui.georgealways.com/#Guide#Styling
+*/
+
+.lil-gui.autoPlace{
+  top: 0;
+  right: 0;
+}
+
+.lil-gui { 
+  --background-color: rgba(46, 46, 46, 0.273);
+  --widget-color: rgba(178, 178, 178, 0.463);
+  --text-color: white;
+  --padding: 5px;
+  --font-size: 12px;
+  
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.168);
+  border-radius: 5px;
 }
