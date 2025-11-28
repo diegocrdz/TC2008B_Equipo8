@@ -64,7 +64,7 @@ let gl = undefined;
 const duration = 200; // ms
 let elapsed = 0;
 let then = 0;
-const NUM_LIGHTS = 10;
+const NUM_LIGHTS = 20;
 
 // Global textures for traffic lights
 let greenTexture = undefined;
