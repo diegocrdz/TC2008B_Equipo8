@@ -165,12 +165,6 @@ class CityModel(Model):
             corner = self.random.choice(corners_to_use)
             corners_to_use.remove(corner)
 
-            # Spawn cars
-            car = CarAgent(self, corner)
-            self.cars.append(car)
-            cars_spawned += 1
-
-            """
             # Spawn ambulances
             if ambulances_spawned < self.ambulance_per_step:
                 ambulance = Ambulance(self, corner)
@@ -181,7 +175,6 @@ class CityModel(Model):
                 car = CarAgent(self, corner)
                 self.cars.append(car)
                 cars_spawned += 1
-            """
 
     def step(self):
         """Advance the model by one step."""
