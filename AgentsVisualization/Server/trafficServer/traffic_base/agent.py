@@ -234,8 +234,59 @@ class CarAgent(CellAgent):
         
         return None
     
+    def isBlockingAmbulance(self, ambulance):
+        """
+        Checks if this car is blocking the path of the given ambulance.
+            
+        """
+        # First check if ambulance is in emergency state
+        if not hasattr(ambulance, 'state') or ambulance.state != "emergency":
+            return False
+        
+        # Get ambulance position and direction
+        amb_x, amb_y = ambulance.cell.coordinate
+        amb_direction = ambulance.lastDirection
+        
+        # If ambulance has no direction yet, get it from its current road
+        if amb_direction is None:
+            for agent in ambulance.cell.agents:
+                if isinstance(agent, Road):
+                    amb_direction = agent.direction
+                    break
+        
+        if amb_direction is None:
+            return False
+        
+        # Get car position
+        car_x, car_y = self.cell.coordinate
+        
+        # Check if car is directly in front of ambulance based on ambulance's direction
+        if amb_direction == "Up":
+            # Car must be directly above ambulance (same x, higher y) 
+            # We use the range of 4 cells ahead
+            if car_x == amb_x and car_y > amb_y and car_y <= amb_y + 4:
+                return True
+        elif amb_direction == "Down":
+            # Car must be directly below ambulance (same x, lower y)
+            # We use the range of 4 cells ahead
+            if car_x == amb_x and car_y < amb_y and car_y >= amb_y - 4:
+                return True
+        elif amb_direction == "Right":
+            # Car must be directly to the right of ambulance (same y, higher x)
+            # We use the range of 4 cells ahead
+            if car_y == amb_y and car_x > amb_x and car_x <= amb_x + 4:
+                return True
+        elif amb_direction == "Left":
+            # Car must be directly to the left of ambulance (same y, lower x)
+            # We use the range of 4 cells ahead
+            if car_y == amb_y and car_x < amb_x and car_x >= amb_x - 4:
+                return True
+        
+        return False
+
     def checkAmbulance(self):
         """Chooses the next cell based on the state of ambulances."""
+        # Continue statement from geeksforgeeks: https://www.geeksforgeeks.org/python/python-continue-statement/
         # This method was obtained from Mesa API Documentation
         # https://mesa.readthedocs.io/latest/apis/discrete_space.html#mesa.discrete_space.__init__.OrthogonalMooreGrid
         neighbor_cells = self.cell.get_neighborhood(
@@ -252,7 +303,19 @@ class CarAgent(CellAgent):
             # If an ambulance has been detected in emergency, clear the path
             if ambulance and ambulance.state == "emergency":
                 ambulance_nearby = True
-                # If there's an ambulance in emergency state nearby and we haven't moved yet
+                # Check if the ambulance already moved diagonally this step
+                # This method was obtained from Geekforgeeks
+                # https://www.geeksforgeeks.org/python/python-hasattr-method/
+                if hasattr(ambulance, 'moved_diagonally') and ambulance.moved_diagonally:
+                    # Ambulance has already moved on its own, stay in place to avoid crashing or blocking 
+                    return None
+                
+                # Check if this car is really blocking the ambulance's path
+                if not self.isBlockingAmbulance(ambulance):
+                    # Not blocking, continue normally
+                    continue
+                
+                # Otherwise, if we're blocking and haven't moved yet
                 if not self.moved_for_ambulance:
                     # Get diagonal cells based on the actual direction of the car
                     diagonal_cells = self.get_diagonal_cells()
@@ -264,6 +327,7 @@ class CarAgent(CellAgent):
                             # Must have road
                             has_road = any(isinstance(obj, Road) for obj in cell.agents)
                             if not has_road:
+                                # Since we want to append the valid cells only, if there is no road it's invalid, so we skip it
                                 continue
                             
                             # Cannot have obstacles, cars, or ambulances
@@ -272,6 +336,7 @@ class CarAgent(CellAgent):
                             has_ambulance_obj = any(isinstance(obj, Ambulance) for obj in cell.agents)
                             
                             if has_obstacle or has_car or has_ambulance_obj:
+                                # Since we want to append the valid cells only, if there is any of these it's invalid, so we skip it
                                 continue
                             
                             # Check traffic light
@@ -279,11 +344,9 @@ class CarAgent(CellAgent):
                                 (obj for obj in cell.agents if isinstance(obj, Traffic_Light)), None
                             )
                             
-                            if traffic_light:
-                                # If traffic light is red we can't move there we skip it
-                                if not traffic_light.is_green:
-                                    continue
-                                # If green we can use this cell
+                            if traffic_light and not traffic_light.is_green:
+                                # Since we want to append the valid cells only, if the light is red it's invalid, so we skip it
+                                continue
                             
                             # Cell is valid
                             valid_neighbors.append(cell)
@@ -465,6 +528,7 @@ class CarAgent(CellAgent):
         
     def get_diagonal_cells(self):
         """Get diagonal neighboring cells based on the car's last movement."""
+        # Continue statement from geeksforgeeks: https://www.geeksforgeeks.org/python/python-continue-statement/
 
         # Get valid neighbors
         valid_neighbors = self.cell.neighborhood.select(
@@ -496,6 +560,26 @@ class CarAgent(CellAgent):
         if next_cell is not None:
             self.cell = next_cell
     
+    def crash(self):
+        """If a car crashes with another car or ambulance, we remove them."""
+        actual_cell = self.cell
+        agents_to_remove = []
+        
+        for agent in actual_cell.agents:
+            # If the agent in the cell is another car or ambulance
+            if isinstance(agent, CarAgent) and agent != self:
+                agents_to_remove.append(agent)
+            elif isinstance(agent, Ambulance):
+                agents_to_remove.append(agent)
+        
+        # If the car crashed with other cars or ambulances, add this car too
+        if agents_to_remove:
+            agents_to_remove.append(self)
+        
+        # Remove all agents in the list
+        for agent in agents_to_remove:
+            self.model.grid.remove_agent(agent)
+    
     def step(self):
         """
         Executes one step of the car's behavior.
@@ -517,6 +601,14 @@ class CarAgent(CellAgent):
         # If no path exists, cannot move
         if not self.path:
             self.remove()  # Remove car from the model
+            return
+        
+        # First check if we are inside a traffic light cell
+        current_traffic_light = next(
+            (obj for obj in self.cell.agents if isinstance(obj, Traffic_Light)), None
+        )
+        if current_traffic_light and not current_traffic_light.is_green:
+            self.state = "waitingTL"
             return
 
         # Check current state and decide next action
@@ -589,6 +681,7 @@ class Ambulance(CellAgent):
                 self.lastDirection = agent.direction
                 break
         
+        self.moved_diagonally = False  # Track if ambulance moved diagonally this step
         print(f"ID: {self.unique_id} Ambulance state: {self.state}")
 
     def step(self):
@@ -603,16 +696,20 @@ class Ambulance(CellAgent):
         - emergency: Moving regardless of traffic rules
         """
 
-        # If the ambulance is on emergency, move without checking traffic lights
-        # Ignores cars and other obstacles - has absolute priority
+        # REset the flag at each step
+        self.moved_diagonally = False
+
+        # If the ambulance is on emergency, move without checking traffic lights, only cars, obstacles, or ambulances (not in emergency state)
         if self.state == "emergency":
+            # If there is a car in front, the ambulance checks for his state and tries to move diagonally
+            if self.inEmergency():
+                self.moved_diagonally = True
+                return
+            
+            # If inEmergency returned False it means that there was no car in front, so we can move normally
             next_cell = self.getNextCell()
             if next_cell:
-                # Check if there's an ambulance blocking (ambulances don't block each other in emergency)
-                has_ambulance = any(isinstance(agent, Ambulance) and agent.state == "emergency" for agent in next_cell.agents)
-                
-                if not has_ambulance:
-                    self.move(next_cell)
+                self.move(next_cell)
             return
 
         # If the ambulance is not on emergency, first check if we are inside a traffic light cell
@@ -703,11 +800,8 @@ class Ambulance(CellAgent):
         return None
 
     def checkAmbulance(self):
-        """Chooses the next cell based on the state of ambulances.
-        
-        For ambulances in emergency, tries to find alternative paths around other ambulances.
-        For ambulances in idle state, moves away from emergency ambulances.
-        """
+        """Chooses the next cell based on the state of ambulances."""
+        # Continue statement from geeksforgeeks: https://www.geeksforgeeks.org/python/python-continue-statement/
         # This method was obtained from Mesa API Documentation
         # https://mesa.readthedocs.io/latest/apis/discrete_space.html#mesa.discrete_space.__init__.OrthogonalMooreGrid
         neighbor_cells = self.cell.get_neighborhood(
@@ -735,6 +829,7 @@ class Ambulance(CellAgent):
                             # Must have road
                             has_road = any(isinstance(obj, Road) for obj in cell.agents)
                             if not has_road:
+                                # Since we want to append the valid cells only, if there is no road it's invalid, so we skip it
                                 continue
                             
                             # Cannot have obstacles or other ambulances
@@ -762,6 +857,7 @@ class Ambulance(CellAgent):
                             if traffic_light:
                                 # If traffic light is red we can't move there we skip it
                                 if not traffic_light.is_green:
+                                    # Since we want to append the valid cells only, if the light is red it's invalid, so we skip it
                                     continue
                             
                             # Cell is valid
@@ -804,11 +900,12 @@ class Ambulance(CellAgent):
         if not ambulance_nearby:
             self.moved_for_ambulance = False
         
-        # No ambulance in emergency nearby continue
+        # No ambulance in emergency nearby continue moving normally
         return self.getNextCell() 
 
     def get_diagonal_cells(self):
         """Get diagonal neighboring cells based on the car's last movement."""
+        # Continue statement from geeksforgeeks: https://www.geeksforgeeks.org/python/python-continue-statement/
 
         x, y = self.cell.coordinate
         diagonal_coords = []
@@ -848,6 +945,59 @@ class Ambulance(CellAgent):
             diagonal_cells.append(cell)
 
         return diagonal_cells
+    
+    def inEmergency(self):
+        """If the ambulance is in emergency, and there's a car waiting directly in front, the ambulance moves diagonally to pass."""
+        # Get the cell directly in front based on direction
+        next_cell = self.getNextCell()
+        
+        if next_cell is None:
+            return False
+        
+        # Check if there's a car or ambulance waiting directly in front
+        car_waiting_in_front = False
+        for agent in next_cell.agents:
+            if isinstance(agent, CarAgent) or isinstance(agent, Ambulance):
+                # Check if car or ambulance are waiting
+                # This method was obtained from Geekforgeeks
+                # https://www.geeksforgeeks.org/python/python-hasattr-method/
+                if hasattr(agent, 'state') and agent.state in ["waitingCar", "waitingTL"]:
+                    car_waiting_in_front = True
+                    break
+        
+        # Only move diagonally if there's a car or ambulance waiting directly in front
+        if car_waiting_in_front:
+            diagonal_cells = self.get_diagonal_cells()
+            
+            if diagonal_cells:
+                # Filter valid diagonal cells
+                valid_neighbors = []
+                for cell in diagonal_cells:
+                    # Must have road
+                    has_road = any(isinstance(obj, Road) for obj in cell.agents)
+                    if not has_road:
+                        # Since we want to append the valid cells only, if there is no road it's invalid, so we skip it
+                        continue
+                    
+                    # Cannot have obstacles, cars, or ambulances
+                    has_obstacle = any(isinstance(obj, Obstacle) for obj in cell.agents)
+                    has_car = any(isinstance(obj, CarAgent) for obj in cell.agents)
+                    has_ambulance_obj = any(isinstance(obj, Ambulance) for obj in cell.agents)
+                    
+                    if has_obstacle or has_car or has_ambulance_obj:
+                        # Since we want to append the valid cells only, if there is any of these it's invalid, so we skip it
+                        continue
+                    
+                    # Cell is valid
+                    valid_neighbors.append(cell)
+                
+                # Move to a random valid diagonal cell if available
+                if valid_neighbors:
+                    new_cell = random.choice(valid_neighbors)
+                    self.move(new_cell)
+                    return True
+        
+        return False
 
     def checkCars(self):
         """Chooses the next cell based on the presence of cars.
@@ -924,6 +1074,26 @@ class Ambulance(CellAgent):
     def move(self, next_cell):
         """Moves the agent to the next cell."""
         self.cell = next_cell
+    
+    def crash(self):
+        """If an ambulance crashes with a car or another ambulance, we remove them."""
+        actual_cell = self.cell
+        agents_to_remove = []
+        
+        for agent in actual_cell.agents:
+            # If the agent in the cell is a car or another ambulance
+            if isinstance(agent, CarAgent):
+                agents_to_remove.append(agent)
+            elif isinstance(agent, Ambulance) and agent != self:
+                agents_to_remove.append(agent)
+        
+        # If there are collisions with cars or ambulances, add this ambulance too
+        if agents_to_remove:
+            agents_to_remove.append(self)
+        
+        # Remove all agents in the list
+        for agent in agents_to_remove:
+            self.model.grid.remove_agent(agent)
 
     @property
     def has_emergency(self):
