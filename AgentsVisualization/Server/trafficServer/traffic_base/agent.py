@@ -509,13 +509,11 @@ class CarAgent(VehicleAgent):
                             # ya nos hicimos a un lado, no avanzamos este turno
                             return None
 
-                    # Si NO hay diagonales válidas, marcamos que ya intentamos
-                    # y salimos del for para seguir el comportamiento normal.
+                    # If no diagonal cell found, just stay in place
                     self.moved_for_ambulance = True
-                    break  # salimos del for neighbor_cell
+                    break 
 
                 else:
-                    # Ya intentamos movernos para esta ambulancia; seguimos normal
                     break
 
         

@@ -238,41 +238,59 @@ async function getAmbulances() {
                 // Update the positions of existing ambulances
                 for (const agent of result.positions) {
 
-                    let amb = ambulances.find(a => a.id == agent.id);
+                    const current_agent = ambulances.find((object3d) => object3d.id == agent.id);
 
-                    if (!amb) {
-                        // --- SOLO CREAR SI NO EXISTÍA ---
-                        amb = new Object3D(agent.id, [agent.x, agent.y, agent.z]);
+                    // Check if the ambulance exists in the ambulances array
+                    if(current_agent != undefined){
+                        // Update the ambulance's position
+                        current_agent.oldPosArray = current_agent.posArray;
+                        current_agent.position = {x: agent.x, y: agent.y, z: agent.z};
 
-                        amb.oldPosArray = amb.posArray;
-                        amb.direction = agent.direction;
-                        const rotationY = getRotation(amb.posArray, amb.posArray);
-                        amb.oldRotY = rotationY;
-                        amb.targetRotY = rotationY;
+                        // Update the direction and rotation
+                        current_agent.oldRotY = current_agent.targetRotY;
+                        current_agent.direction = agent.direction;
+                        const rotationY = getRotation(current_agent.oldPosArray, current_agent.posArray);
 
-                        amb.light = agent.light;
-                        amb.light_state = agent.light_state;
-                        amb.has_emergency = agent.has_emergency;
+                        // Only update target rotation if there was actual movement
+                        if (rotationY !== null) {
+                            current_agent.targetRotY = rotationY;
+                        }
 
-                        ambulances.push(amb);
-                        setupNewAmbulanceAgent(amb);
+                        // Update siren light state
+                        current_agent.light = agent.light;
+                        current_agent.light_state = agent.light_state;
+
+                        // Update emergency state
+                        current_agent.has_emergency = agent.has_emergency;
+
+                    } else {
+                        // If the ambulance does not exist, create it
+                        const newAgent = new Object3D(agent.id, [agent.x, agent.y, agent.z]);
+
+                        // Store the initial position
+                        newAgent['oldPosArray'] = newAgent.posArray;
+
+                        // Store the direction
+                        newAgent['direction'] = agent.direction;
+
+                        // Store the rotation
+                        const rotationY = getRotation(newAgent.posArray, newAgent.posArray);
+                        newAgent['oldRotY'] = rotationY;
+                        newAgent['targetRotY'] = rotationY;
+
+                        // Store the siren light state
+                        newAgent['light'] = agent.light;
+                        newAgent['light_state'] = agent.light_state;
+
+                        // Store emergency state
+                        newAgent['has_emergency'] = agent.has_emergency;
+
+                        // Add to ambulances array
+                        ambulances.push(newAgent);
+
+                        // Setup the new ambulance in the scene
+                        setupNewAmbulanceAgent(newAgent);
                     }
-
-                    // --- ACTUALIZAR CAMPOS SIN RECREAR EL OBJETO ---
-                    amb.oldPosArray = amb.posArray;
-                    amb.position = { x: agent.x, y: agent.y, z: agent.z };
-
-                    amb.oldRotY = amb.targetRotY;
-                    amb.direction = agent.direction;
-
-                    const rotationY = getRotation(amb.oldPosArray, amb.posArray);
-                    if (rotationY !== null) {
-                        amb.targetRotY = rotationY;
-                    }
-
-                    amb.light = agent.light;
-                    amb.light_state = agent.light_state;
-                    amb.has_emergency = agent.has_emergency;
                 }
             }
         }
