@@ -1,5 +1,7 @@
 /*
  * Utils functions for the visualization
+ * These functions can be reutilized in random_agents.js and 
+ * api_connection.js
  *
  * Diego Córdova Rodríguez
  * Lorena Estefanía Chewtat Torres
@@ -74,43 +76,6 @@ export function getRotation(oldPos, newPos) {
   }
 }
 
-// Function to get the closest lights to the camera
-export function getLightsCloseToCamera(numLights, scene) {
-  // Get camera position
-  const camPos = scene.camera.posArray;
-  const [cx, cy, cz] = camPos;
-
-  // Compute distances to all lights
-  let lightDistances = [];
-  for (let i = 0; i < scene.lights.length; i++) {
-    const lightPos = scene.lights[i].posArray;
-
-    // Calculate vector from camera to light
-    const dx = lightPos[0] - cx;
-    const dy = lightPos[1] - cy;
-    const dz = lightPos[2] - cz;
-
-    // Get the magnitude of the distance vector
-    const dist = Math.sqrt(dx * dx + dy * dy + dz * dz);
-
-    // Store index and distance
-    lightDistances.push({ index: i, distance: dist });
-  }
-
-  // Sort lights by distance
-  lightDistances.sort((a, b) => a.distance - b.distance);
-
-  // Get the closest numLights lights
-  let closestLights = [];
-
-  // Math.min lets us have less than numLights if there are not enough lights
-  for (let i = 0; i < Math.min(numLights, lightDistances.length); i++) {
-    closestLights.push(scene.lights[lightDistances[i].index]);
-  }
-
-  return closestLights;
-}
-
 // Helper function to apply common properties to an agent/object
 export function applyObjectProperties(obj, props) {
   if (props.scale) obj.scale = props.scale;
@@ -134,14 +99,20 @@ export function assignModelToAgents(agents, baseModel, props = {}) {
 
 // Helper function to create a base model object
 export function createBaseModel(id, gl, programInfo, modelObj, modelMtl, { loadMtl }) {
-  const baseModel = new (require('../libs/object3d.js').Object3D)(id);
+  // Create the base model
+  const baseModel = new Object3D(id);
+
+  // Load MTL if provided
   if (modelMtl) loadMtl(modelMtl);
+
+  // Prepare VAO
   baseModel.prepareVAO(gl, programInfo, modelObj);
   baseModel.programType = 'texture';
+
   return baseModel;
 }
 
-// Helper function to get rotation based on direction
+// Helper function to get rotation of a road light based on direction
 export function getRotationByDirection(direction) {
   switch (direction) {
     case "Right":
@@ -157,7 +128,8 @@ export function getRotationByDirection(direction) {
   }
 }
 
-// Helper function to get rotation for traffic lights (different from roads)
+// Helper function to get rotation for traffic lights
+// This is used to position the traffic lights correctly on sidewalks
 export function getTrafficLightRotation(direction) {
   switch (direction) {
     case "Right":
@@ -173,23 +145,33 @@ export function getTrafficLightRotation(direction) {
   }
 }
 
-// Helper function to batch create models
+// Helper function to create multiple base models already prepared with VAO
+// Used to add multiple models at once, especially new vehicles in the scene
 export function createBaseModels(gl, programInfo, models, { loadMtl }) {
+  // Array to store base models
   const baseModels = {};
-  const ObjectClass = require('../libs/object3d.js').Object3D;
-  
-  let id = 100;
-  for (const [key, model] of Object.entries(models)) {
+  let id = 100; // Starting ID for models
+
+  // Create each base model
+  for (const [key, model] of Object3D.entries(models)) {
+    // Load MTL if provided
     if (model.mtl) loadMtl(model.mtl);
-    const baseModel = new ObjectClass(id++);
+
+    // Create the base model
+    const baseModel = new Object3D(id++);
+
+    // Prepare VAO
     baseModel.prepareVAO(gl, programInfo, model.obj);
     baseModel.programType = 'texture';
+
+    // Store in the base models array
     baseModels[key] = baseModel;
   }
   return baseModels;
 }
 
 // Helper function to create a single base model with MTL loading and VAO preparation
+// Used to initially create models
 export function createBaseModelWithMtl(id, gl, programInfo, modelObj, modelMtl) {  
   // Load MTL
   loadMtl(modelMtl);
@@ -207,6 +189,7 @@ export function createBaseModelWithMtl(id, gl, programInfo, modelObj, modelMtl) 
 }
 
 // Helper function to get offset based on traffic light direction
+// Used to position the light correctly relative to the traffic light
 export function getTrafficLightOffset(direction, distance = 0.5) {
   let offsetX = 0;
   let offsetZ = 0;
@@ -230,6 +213,7 @@ export function getTrafficLightOffset(direction, distance = 0.5) {
 }
 
 // Helper function to get light color based on traffic light state
+// Green for true, Red for false
 export function getTrafficLightColor(state) {
   return state
     ? [0.0, 0.8, 0.0, 1.0] // Green
@@ -250,6 +234,17 @@ export function updateTrafficLights(
   const cubeOffsetY = 0.9;
 
   for (const tl of trafficLights) {
+    // Apply position offset on first update if not yet applied
+    if (!tl.positionOffsetApplied) {
+      const posOffset = getTrafficLightOffset(tl.direction);
+      tl.position = {
+        x: tl.position.x + posOffset.offsetX,
+        y: tl.position.y,
+        z: tl.position.z + posOffset.offsetZ
+      };
+      tl.positionOffsetApplied = true;
+    }
+
     // Set light position and color
     const pos = tl.position;
     const heightOffset = pos.y + offsetY;
@@ -308,18 +303,22 @@ export function updateTrafficLights(
         y: pos.y + cubeOffsetY,
         z: pos.z + offset.offsetZ
       };
+      // Update texture based on current state
       tl.lightCube.texture = tl.state ? greenTexture : redTexture;
     }
   }
 }
 
-// Helper function to update ambulance siren lights
+// Helper function to create/update ambulance siren lights
 export function updateAmbulanceLights(ambulances, scene, fract) {
   const offsetY = 0.8;
 
   for (const ambulance of ambulances) {
-    // If the ambulance has an emergency and does not have a siren light, create it
-    if (ambulance.has_emergency && !ambulance.sirenLight) {
+    if (!ambulance.posArray) continue;
+
+    // If the ambulance has been marked to have emergency siren on
+    // and doesnt already have a siren light, create it
+    if (ambulance.light && !ambulance.sirenLight) {
       // Set light position
       const pos = ambulance.position;
       const heightOffset = pos.y + offsetY;
@@ -340,7 +339,7 @@ export function updateAmbulanceLights(ambulances, scene, fract) {
       ambulance.sirenLight = light;
       scene.addLight(light);
 
-    } else if (ambulance.sirenLight && ambulance.has_emergency) {
+    } else if (ambulance.light && ambulance.sirenLight) {
       // If the siren exists, update its position and color
       // Set light position
       const pos = ambulance.position;
@@ -369,12 +368,11 @@ export function updateAmbulanceLights(ambulances, scene, fract) {
       // Update light color
       ambulance.sirenLight.diffuse = lightColor;
       ambulance.sirenLight.specular = lightColor;
-      
-    } else if (ambulance.sirenLight && !ambulance.has_emergency) {
-      // Remove siren light if ambulance is no longer in emergency
-      if (scene) {
-        scene.removeLight(ambulance.sirenLight);
-      }
+
+    } else if (!ambulance.light && ambulance.sirenLight) {
+      // If the ambulance no longer has emergency siren on
+      // but still has a siren light, remove it from the scene
+      scene.removeLight(ambulance.sirenLight);
       ambulance.sirenLight = null;
     }
   }

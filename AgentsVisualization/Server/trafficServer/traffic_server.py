@@ -125,7 +125,11 @@ def getAmbulances():
                     "x": coordinate[0],
                     "y": 1,
                     "z": coordinate[1],
-                    "direction": next((road.direction for road in randomModel.grid[coordinate].agents if isinstance(road, Road)), None),
+                    "direction": next((
+                        road.direction for road in randomModel.grid[coordinate].agents
+                        if isinstance(road, Road)), None
+                    ),
+                    "light": a.light,
                     "light_state": a.light_state,
                     "has_emergency": a.has_emergency,
                 }

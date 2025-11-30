@@ -103,7 +103,13 @@ export function setupNewCarAgent(agent) {
 
 // Setup a new ambulance agent with model and texture
 export function setupNewAmbulanceAgent(agent) {
-  if (!ambulanceBaseModel) return; // Model not ready yet
+  if (!ambulanceBaseModel) {
+    // If model is not ready yet, still add to scene so it gets rendered
+    // The model will be assigned in the next update cycle
+    console.warn("Ambulance model not ready, adding without geometry");
+    scene.addObject(agent);
+    return;
+  }
   
   assignModelToAgents([agent], ambulanceBaseModel, {
     scale: { x: 0.1, y: 0.1, z: 0.1 },
@@ -209,9 +215,15 @@ function setupObjects(scene, gl) {
   scene.addObject(skybox);
 
   // Cars
-  const car1 = createBaseModelWithMtl(4, gl, textureProgramInfo, carModels[0].obj, carModels[0].mtl);
-  const car2 = createBaseModelWithMtl(5, gl, textureProgramInfo, carModels[1].obj, carModels[1].mtl);
-  const car3 = createBaseModelWithMtl(6, gl, textureProgramInfo, carModels[2].obj, carModels[2].mtl);
+  const car1 = createBaseModelWithMtl(
+    4, gl, textureProgramInfo, carModels[0].obj, carModels[0].mtl
+  );
+  const car2 = createBaseModelWithMtl(
+    5, gl, textureProgramInfo, carModels[1].obj, carModels[1].mtl
+  );
+  const car3 = createBaseModelWithMtl(
+    6, gl, textureProgramInfo, carModels[2].obj, carModels[2].mtl
+  );
 
   carModelsArray = [car1, car2, car3];
   carTexturesArray = [car1Texture, car2Texture, car3Texture];
@@ -234,7 +246,10 @@ function setupObjects(scene, gl) {
   }
 
   // Ambulances
-  ambulanceBaseModel = createBaseModelWithMtl(-4, gl, textureProgramInfo, ambulanceModel.obj, ambulanceModel.mtl);
+  ambulanceBaseModel = createBaseModelWithMtl(
+    -4, gl, textureProgramInfo, 
+    ambulanceModel.obj, ambulanceModel.mtl
+  );
   
   for (const agent of ambulances) {
     assignModelToAgents([agent], ambulanceBaseModel, {
@@ -249,12 +264,28 @@ function setupObjects(scene, gl) {
   }
 
   // Obstacles
-  const baseObstacle0 = createBaseModelWithMtl(7, gl, textureProgramInfo, buildingModels[0].obj, buildingModels[0].mtl);
-  const baseObstacle1 = createBaseModelWithMtl(8, gl, textureProgramInfo, buildingModels[1].obj, buildingModels[1].mtl);
-  const baseObstacle2 = createBaseModelWithMtl(9, gl, textureProgramInfo, buildingModels[2].obj, buildingModels[2].mtl);
-  const baseObstacle3 = createBaseModelWithMtl(10, gl, textureProgramInfo, buildingModels[3].obj, buildingModels[3].mtl);
-  const baseObstacle4 = createBaseModelWithMtl(11, gl, textureProgramInfo, buildingModels[4].obj, buildingModels[4].mtl);
+  const baseObstacle0 = createBaseModelWithMtl(
+    7, gl, textureProgramInfo, 
+    buildingModels[0].obj, buildingModels[0].mtl
+  );
+  const baseObstacle1 = createBaseModelWithMtl(
+    8, gl, textureProgramInfo, 
+    buildingModels[1].obj, buildingModels[1].mtl
+  );
+  const baseObstacle2 = createBaseModelWithMtl(
+    9, gl, textureProgramInfo, 
+    buildingModels[2].obj, buildingModels[2].mtl
+  );
+  const baseObstacle3 = createBaseModelWithMtl(
+    10, gl, textureProgramInfo, 
+    buildingModels[3].obj, buildingModels[3].mtl
+  );
+  const baseObstacle4 = createBaseModelWithMtl(
+    11, gl, textureProgramInfo, 
+    buildingModels[4].obj, buildingModels[4].mtl
+  );
 
+  // Obstacle array
   const baseObstacles = [
     baseObstacle0, baseObstacle1, 
     baseObstacle2, baseObstacle3,
@@ -263,18 +294,40 @@ function setupObjects(scene, gl) {
 
   // Building configuration by type
   const buildingConfigs = [
-    { scale: { x: 1, y: 1.2, z: 1 }, shininess: 16.0, texture: simpleBuildingTexture },
-    { scale: { x: 1, y: 1.2, z: 1 }, shininess: 16.0, texture: simpleBuildingTextureB },
-    { scale: { x: 0.35, y: 0.5, z: 0.35 }, shininess: 16.0, texture: complexBuildingTexture },
-    { scale: { x: 0.35, y: 0.5, z: 0.35 }, shininess: 16.0, texture: complexBuildingTexture },
-    { scale: { x: 1, y: 1.5, z: 1 }, shininess: 16.0, texture: simpleBuildingTextureA },
+    { 
+      scale: { x: 1, y: 1.2, z: 1 }, 
+      shininess: 16.0, 
+      texture: simpleBuildingTexture 
+    },
+    { 
+      scale: { x: 1, y: 1.2, z: 1 }, 
+      shininess: 16.0, 
+      texture: simpleBuildingTextureB 
+    },
+    { 
+      scale: { x: 0.35, y: 0.5, z: 0.35 }, 
+      shininess: 16.0, 
+      texture: complexBuildingTexture 
+    },
+    { 
+      scale: { x: 0.35, y: 0.5, z: 0.35 }, 
+      shininess: 16.0, 
+      texture: complexBuildingTexture 
+    },
+    { 
+      scale: { x: 1, y: 1.5, z: 1 }, 
+      shininess: 16.0, 
+      texture: simpleBuildingTextureA 
+    },
   ];
 
   for (const agent of obstacles) {
+    // Get random model
     const randomIndex = Math.floor(Math.random() * 5);
     const baseObstacle = baseObstacles[randomIndex];
     const config = buildingConfigs[randomIndex];
 
+    // Assign model data
     assignModelToAgents([agent], baseObstacle, {
       ...config,
       color: [1.0, 1.0, 1.0, 1.0],
@@ -285,7 +338,10 @@ function setupObjects(scene, gl) {
   }
 
   // Traffic Lights
-  const baseTrafficLight = createBaseModelWithMtl(12, gl, textureProgramInfo, trafficLightModel.obj, trafficLightModel.mtl);
+  const baseTrafficLight = createBaseModelWithMtl(
+    12, gl, textureProgramInfo, 
+    trafficLightModel.obj, trafficLightModel.mtl
+  );
 
   for (const agent of trafficLights) {
     assignModelToAgents([agent], baseTrafficLight, {
@@ -299,7 +355,10 @@ function setupObjects(scene, gl) {
   }
 
   // Roads
-  const baseRoadStraight = createBaseModelWithMtl(14, gl, textureProgramInfo, roadStraightModel.obj, roadStraightModel.mtl);
+  const baseRoadStraight = createBaseModelWithMtl(
+    14, gl, textureProgramInfo,
+    roadStraightModel.obj, roadStraightModel.mtl
+  );
 
   for (const agent of roads) {
     assignModelToAgents([agent], baseRoadStraight, {
@@ -325,7 +384,10 @@ function setupObjects(scene, gl) {
   }
 
   // Hospitals
-  const baseHospital = createBaseModelWithMtl(15, gl, textureProgramInfo, hospitalModel.obj, hospitalModel.mtl);
+  const baseHospital = createBaseModelWithMtl(
+    15, gl, textureProgramInfo,
+    hospitalModel.obj, hospitalModel.mtl
+  );
 
   for (const agent of hospitals) {
     assignModelToAgents([agent], baseHospital, {
@@ -338,7 +400,10 @@ function setupObjects(scene, gl) {
   }
 
   // Destinations
-  const baseDestination = createBaseModelWithMtl(16, gl, textureProgramInfo, destinationModel.obj, destinationModel.mtl);
+  const baseDestination = createBaseModelWithMtl(
+    16, gl, textureProgramInfo, 
+    destinationModel.obj, destinationModel.mtl
+  );
 
   for (const agent of destinations) {
     assignModelToAgents([agent], baseDestination, {
@@ -451,17 +516,16 @@ async function drawScene() {
 
   // Texture shader
 
-  // Scene lights
-  const sceneLights = scene.lights.slice(1);
-  const globalLight = scene.lights[0];
-
   // Prepare light arrays for the shader
   let lightPositions = [];
   let diffuseLights = [];
   let specularLights = [];
 
   // Only add local lights
-  for (const light of sceneLights) {
+  for (const light of scene.lights) {
+    // ... used to add the each number of the data individually
+    // Since the shaders expects a plain array
+    // Ref: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Spread_syntax
     lightPositions.push(...light.posArray);
     diffuseLights.push(...light.diffuse);
     specularLights.push(...light.specular);
@@ -472,9 +536,9 @@ async function drawScene() {
     u_lightWorldPosition: lightPositions,
     
     // Global light
-    u_ambientLight: globalLight.ambient,
-    u_globalDiffuseLight: globalLight.diffuse,
-    u_globalSpecularLight: globalLight.specular,
+    u_ambientLight: scene.lights[0].ambient,
+    u_globalDiffuseLight: scene.lights[0].diffuse,
+    u_globalSpecularLight: scene.lights[0].specular,
 
     // Local lights
     u_diffuseLight: diffuseLights,

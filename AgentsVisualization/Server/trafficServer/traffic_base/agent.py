@@ -695,7 +695,7 @@ class Ambulance(VehicleAgent):
         self.moved_diagonally = False  # Track if ambulance moved diagonally this step
 
         # Siren light attributes
-        self.light = False # True = blue light on, False = red light on
+        self.light = False # Wether the siren light is on or off
         self.light_state = "red"  # Initial light state
         self.light_timer = 0  # Timer for light switching
         self.light_interval = 2  # Steps between light switches
@@ -766,6 +766,7 @@ class Ambulance(VehicleAgent):
         """Checks if the car has reached its destination."""
         for agent in self.cell.agents:
             if isinstance(agent, Hospital):
+                self.light = False  # Turn off siren light
                 self.remove()  # Remove car from the model
 
     def checkAmbulance(self):
