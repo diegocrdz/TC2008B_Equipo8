@@ -27,6 +27,10 @@ class Scene3D {
     removeObject(objectId) {
         this.objects = this.objects.filter(obj => obj.id != objectId);
     }
+
+    removeLight(light) {
+        this.lights = this.lights.filter(l => l !== light);
+    }
 };
 
 export { Scene3D };

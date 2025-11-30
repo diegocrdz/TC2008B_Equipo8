@@ -11,6 +11,7 @@ Aquiba Yudah Benarroch Bittán
 
 from mesa import Model
 from mesa.discrete_space import OrthogonalMooreGrid
+from mesa.datacollection import DataCollector
 from .agent import *
 import json
 
@@ -23,13 +24,28 @@ class CityModel(Model):
         seed: Random seed for the model
     """
 
-    def __init__(self, N, seed=42, car_spawn_rate=5, vehicles_per_step=4, ambulance_per_step=1):
+    def __init__(
+        self, N, seed=42,
+        vehicle_spawn_rate=15,
+        vehicles_per_step=4,
+        ambulance_per_step=1,
+        emergency_chance=0.5
+    ):
 
         super().__init__(seed=seed)
-
-        self.car_spawn_rate = car_spawn_rate
+        self.vehicle_spawn_rate = vehicle_spawn_rate
         self.vehicles_per_step = vehicles_per_step
         self.ambulance_per_step = ambulance_per_step
+        self.emergency_chance = emergency_chance
+        
+        # Setup data collection
+        model_reporters = {
+            "Time (Steps)": lambda m: m.steps,
+            "Total Cars": lambda m: len([agent for agent in m.agents_by_type[CarAgent]]),
+            "Total Ambulances": lambda m: len([agent for agent in m.agents_by_type[Ambulance]]),
+            "Emergency Ambulances": lambda m: len([agent for agent in m.agents_by_type[Ambulance] if agent.has_emergency]),
+        }
+        self.datacollector = DataCollector(model_reporters)
 
         # Load the map dictionary. The dictionary maps the characters in the map file to the corresponding agent.
         dataDictionary = json.load(open("city_files/mapDictionary.json"))
@@ -151,7 +167,7 @@ class CityModel(Model):
         """Spawn vehicles at the corners of the grid based on the spawn rates."""
 
         # Check if the vehicles can be spawn based on the step
-        if self.steps % self.car_spawn_rate != 0:
+        if self.steps % self.vehicle_spawn_rate != 0:
             return
 
         cars_spawned = 0
@@ -159,7 +175,7 @@ class CityModel(Model):
         corners_to_use = self.corners.copy()
 
         # Spawn vehicles at each corner
-        for _ in range(len(corners_to_use)):
+        for _ in range(self.vehicles_per_step):
 
             # Get random corner
             corner = self.random.choice(corners_to_use)
@@ -178,5 +194,14 @@ class CityModel(Model):
 
     def step(self):
         """Advance the model by one step."""
+
+        # If the model is not running, do nothing
+        if not self.running:
+            return
+        
+        # Do step
         self.spawn_vehicles()
         self.agents.shuffle_do("step")
+
+        # Collect data
+        self.datacollector.collect(self)

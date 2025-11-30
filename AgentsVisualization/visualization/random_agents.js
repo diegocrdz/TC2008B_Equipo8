@@ -7,7 +7,7 @@
  * Lorena Estefanía Chewtat Torres
  * Aquiba Yudah Benarroch Bittán
  * 
- * 2025-11-27
+ * 2025-11-29
  */
 
 'use strict';
@@ -63,6 +63,7 @@ import {
   getTrafficLightRotation,
   createBaseModelWithMtl,
   updateTrafficLights,
+  updateAmbulanceLights,
 } from './utils.js';
 
 // Create the 3D scene
@@ -71,10 +72,49 @@ const scene = new Scene3D();
 // Global variables
 let textureProgramInfo = undefined;
 let gl = undefined;
-const duration = 500; // ms
+let duration = 400; // ms
 let elapsed = 0;
 let then = 0;
 const NUM_LIGHTS = 8;
+
+// Store base models and textures globally for adding new agents
+let carModelsArray = [];
+let carTexturesArray = [];
+let ambulanceBaseModel = null;
+let baseCubeTexGlobal = null;
+
+// Setup a new car agent with model and texture
+export function setupNewCarAgent(agent) {
+  if (carModelsArray.length === 0) return; // Models not ready yet
+  
+  const randomIndex = Math.floor(Math.random() * 3);
+  const car = carModelsArray[randomIndex];
+  
+  assignModelToAgents([agent], car, {
+    scale: { x: 0.1, y: 0.1, z: 0.1 },
+    color: [1.0, 1.0, 1.0, 1.0],
+    shininess: 4.0,
+    texture: carTexturesArray[randomIndex],
+    programType: 'texture',
+  });
+  
+  scene.addObject(agent);
+}
+
+// Setup a new ambulance agent with model and texture
+export function setupNewAmbulanceAgent(agent) {
+  if (!ambulanceBaseModel) return; // Model not ready yet
+  
+  assignModelToAgents([agent], ambulanceBaseModel, {
+    scale: { x: 0.1, y: 0.1, z: 0.1 },
+    color: [1.0, 1.0, 1.0, 1.0],
+    shininess: 4.0,
+    texture: ambulanceTexture,
+    programType: 'texture',
+  });
+  
+  scene.addObject(agent);
+}
 
 // Main function is async to be able to make the requests
 async function main() {
@@ -151,6 +191,9 @@ function setupObjects(scene, gl) {
   baseCubeTex.bufferInfo = twgl.createBufferInfoFromArrays(gl, baseCubeTex.arrays);
   baseCubeTex.vao = twgl.createVAOFromBufferInfo(gl, textureProgramInfo, baseCubeTex.bufferInfo);
 
+  // Store globally for traffic lights
+  baseCubeTexGlobal = baseCubeTex;
+
   // Road with texture
   const baseRoadTex = new Object3D(2);
   baseRoadTex.prepareVAO(gl, textureProgramInfo);
@@ -170,8 +213,8 @@ function setupObjects(scene, gl) {
   const car2 = createBaseModelWithMtl(5, gl, textureProgramInfo, carModels[1].obj, carModels[1].mtl);
   const car3 = createBaseModelWithMtl(6, gl, textureProgramInfo, carModels[2].obj, carModels[2].mtl);
 
-  const carModelsArray = [car1, car2, car3];
-  const carTexturesArray = [car1Texture, car2Texture, car3Texture];
+  carModelsArray = [car1, car2, car3];
+  carTexturesArray = [car1Texture, car2Texture, car3Texture];
 
   for (const agent of agents) {
     // Get random model
@@ -191,10 +234,10 @@ function setupObjects(scene, gl) {
   }
 
   // Ambulances
-  const ambulance = createBaseModelWithMtl(-4, gl, textureProgramInfo, ambulanceModel.obj, ambulanceModel.mtl);
-
+  ambulanceBaseModel = createBaseModelWithMtl(-4, gl, textureProgramInfo, ambulanceModel.obj, ambulanceModel.mtl);
+  
   for (const agent of ambulances) {
-    assignModelToAgents([agent], ambulance, {
+    assignModelToAgents([agent], ambulanceBaseModel, {
       scale: { x: 0.1, y: 0.1, z: 0.1 },
       color: [1.0, 1.0, 1.0, 1.0],
       shininess: 4.0,
@@ -222,8 +265,8 @@ function setupObjects(scene, gl) {
   const buildingConfigs = [
     { scale: { x: 1, y: 1.2, z: 1 }, shininess: 16.0, texture: simpleBuildingTexture },
     { scale: { x: 1, y: 1.2, z: 1 }, shininess: 16.0, texture: simpleBuildingTextureB },
-    { scale: { x: 0.35, y: 0.5, z: 0.35 }, shininess: 32.0, texture: complexBuildingTexture },
-    { scale: { x: 0.35, y: 0.5, z: 0.35 }, shininess: 32.0, texture: complexBuildingTexture },
+    { scale: { x: 0.35, y: 0.5, z: 0.35 }, shininess: 16.0, texture: complexBuildingTexture },
+    { scale: { x: 0.35, y: 0.5, z: 0.35 }, shininess: 16.0, texture: complexBuildingTexture },
     { scale: { x: 1, y: 1.5, z: 1 }, shininess: 16.0, texture: simpleBuildingTextureA },
   ];
 
@@ -255,96 +298,6 @@ function setupObjects(scene, gl) {
     scene.addObject(agent);
   }
 
-  // Create lights for each traffic light
-  for (const tl of trafficLights) {
-    const pos = tl.position;
-    const heightOffset = pos.y + 0.8;
-
-    // Get offset based on direction to align with semaphore
-    let offsetX = 0;
-    let offsetZ = 0;
-
-    switch (tl.direction) {
-      case "Right":
-        offsetZ = 0.5;
-        break;
-      case "Left":
-        offsetZ = 0.5;
-        break;
-      case "Up":
-        offsetX = -0.5;
-        break;
-      case "Down":
-        offsetX = -0.5;
-        break;
-    }
-
-    // Select color based on state
-    const lightColor = tl.state
-      ? [0.0, 0.8, 0.0, 1.0] // Green
-      : [0.8, 0.0, 0.0, 1.0]; // Red
-
-    // Create the light
-    let light = new Light3D(
-      [pos.x + offsetX, heightOffset, pos.z + offsetZ],
-      [0.1, 0.1, 0.1, 1.0], // Ambient
-      lightColor, // Diffuse
-      lightColor, // Specular
-    );
-
-    // Store reference to light in traffic light object
-    tl.light = light;
-    scene.addLight(light);
-  }
-
-  // Create light emitter cubes for each traffic light
-  for (const tl of trafficLights) {
-    const lightCube = new Object3D(13);
-    const pos = tl.position;
-    const heightOffset = pos.y + 0.8;
-
-    // Get offset based on direction to align with semaphore
-    let offsetX = 0;
-    let offsetZ = 0;
-
-    switch (tl.direction) {
-      case "Right":
-        offsetZ = 0.1;
-        break;
-      case "Left":
-        offsetZ = 0.1;
-        break;
-      case "Up":
-        offsetX = -0.1;
-        break;
-      case "Down":
-        offsetX = -0.1;
-        break;
-    }
-
-    lightCube.position = { x: pos.x + offsetX, y: heightOffset, z: pos.z + offsetZ };
-    lightCube.scale = { x: 0.05, y: 0.1, z: 0.05 };
-
-    // Set texture and color based on state
-    lightCube.shininess = 16.0;
-    lightCube.programType = 'texture';
-    lightCube.color = [1.0, 1.0, 1.0, 1.0]; // White so texture shows properly
-
-    if (tl.state) {
-      lightCube.texture = greenTexture; // Green texture
-    } else {
-      lightCube.texture = redTexture; // Red texture
-    }
-
-    lightCube.arrays = baseCubeTex.arrays;
-    lightCube.bufferInfo = baseCubeTex.bufferInfo;
-    lightCube.vao = baseCubeTex.vao;
-
-    // Store reference to cube in traffic light
-    tl.lightCube = lightCube;
-    scene.addObject(lightCube);
-  }
-
   // Roads
   const baseRoadStraight = createBaseModelWithMtl(14, gl, textureProgramInfo, roadStraightModel.obj, roadStraightModel.mtl);
 
@@ -353,6 +306,7 @@ function setupObjects(scene, gl) {
       scale: { x: 0.5, y: 1, z: 0.5 },
       programType: 'texture',
       texture: complexBuildingTexture,
+      shininess: 8.0,
       rotRad: getRotationByDirection(agent.direction),
     });
 
@@ -479,7 +433,10 @@ async function drawScene() {
   then = now;
 
   // Update traffic lights each frame
-  updateTrafficLights(trafficLights, greenTexture, redTexture);
+  updateTrafficLights(trafficLights, greenTexture, redTexture, scene, baseCubeTexGlobal);
+
+  // Update ambulance siren lights position and state
+  updateAmbulanceLights(ambulances, scene, fract);
 
   // Clear the canvas
   gl.clearColor(0, 0, 0, 1);
@@ -494,19 +451,16 @@ async function drawScene() {
 
   // Texture shader
 
-  // Only consider scene lights without global light
+  // Scene lights
   const sceneLights = scene.lights.slice(1);
+  const globalLight = scene.lights[0];
 
   // Prepare light arrays for the shader
   let lightPositions = [];
   let diffuseLights = [];
   let specularLights = [];
 
-  // Get global light
-  const globalLight = scene.lights[0];
-  lightPositions.push(...globalLight.posArray);
-
-  // Add the rest of the lights to the arrays
+  // Only add local lights
   for (const light of sceneLights) {
     lightPositions.push(...light.posArray);
     diffuseLights.push(...light.diffuse);
@@ -516,14 +470,17 @@ async function drawScene() {
   let textureUniforms = {
     u_viewWorldPosition: scene.camera.posArray,
     u_lightWorldPosition: lightPositions,
- 
-    u_ambientLight: scene.lights[0].ambient,
+    
+    // Global light
+    u_ambientLight: globalLight.ambient,
     u_globalDiffuseLight: globalLight.diffuse,
     u_globalSpecularLight: globalLight.specular,
+
+    // Local lights
     u_diffuseLight: diffuseLights,
     u_specularLight: specularLights,
     
-    // Attenuation parameters
+    // Attenuation
     u_constant: 1.0,
     u_linear: 0.15,
     u_quadratic: 0.15,
@@ -571,30 +528,32 @@ function setupViewProjection(gl) {
 function setupUI() {
   const gui = new GUI();
 
-  // By default, the GUI is closed
-  // gui.close();
+  // Simulation
+  const simFolder = gui.addFolder('Simulación');
+  const durationObj = { value: duration };
+  simFolder.add(durationObj, 'value', 100, 1000, 100).onChange((value) => { duration = value; }).name('Duración (ms)');
 
   // Camera
-  const cameraFolder = gui.addFolder('Camera');
-  cameraFolder.add(scene.camera, 'distance', 1, 50).decimals(2);
-  cameraFolder.add(scene.camera, 'elevation', -Math.PI / 2, Math.PI / 2).decimals(2);
-  cameraFolder.add(scene.camera, 'azimuth', -Math.PI, Math.PI).decimals(2);
+  const cameraFolder = gui.addFolder('Cámara');
+  cameraFolder.add(scene.camera, 'distance', 1, 50).decimals(2).name('Distancia');
+  cameraFolder.add(scene.camera, 'elevation', -Math.PI / 2, Math.PI / 2).decimals(2).name('Elevación');
+  cameraFolder.add(scene.camera, 'azimuth', -Math.PI, Math.PI).decimals(2).name('Azimut');
 
   // Global light
-  const globalLightFolder = gui.addFolder('Global Light');
+  const globalLightFolder = gui.addFolder('Luz global');
   // Position
-  const posFolder = globalLightFolder.addFolder('Position');
+  const posFolder = globalLightFolder.addFolder('Posición');
   posFolder.add(scene.lights[0].position, 'x', -100, 100).decimals(2)
   posFolder.add(scene.lights[0].position, 'y', -100, 100).decimals(2)
   posFolder.add(scene.lights[0].position, 'z', -100, 100).decimals(2)
   // Colors
-  const colorFolder = globalLightFolder.addFolder('Colors');
-  colorFolder.addColor(scene.lights[0], 'ambient');
-  colorFolder.addColor(scene.lights[0], 'diffuse');
-  colorFolder.addColor(scene.lights[0], 'specular');
+  const colorFolder = globalLightFolder.addFolder('Colores');
+  colorFolder.addColor(scene.lights[0], 'ambient').name('Ambiental');
+  colorFolder.addColor(scene.lights[0], 'diffuse').name('Difusa');
+  colorFolder.addColor(scene.lights[0], 'specular').name('Especular');
 
   // Actions
-  const actionsFolder = gui.addFolder('Actions');
+  const actionsFolder = gui.addFolder('Acciones');
   // Actions object
   const actions = {
     trackCar: function() {
@@ -602,10 +561,7 @@ function setupUI() {
         // Get random car
         const randomIdx = Math.floor(Math.random() * agents.length);
         const car = agents[randomIdx];
-        scene.camera.setTargetObject(car);
-        scene.camera.distance = 1;
-        scene.camera.elevation = 1.5;
-        scene.camera.panOffset = [0, 5, 0];
+        this.trackAgent(car);
       }
     },
     trackAmbulance: function() {
@@ -613,10 +569,17 @@ function setupUI() {
         // Get random ambulance
         const randomIdx = Math.floor(Math.random() * ambulances.length);
         const ambulance = ambulances[randomIdx];
-        scene.camera.setTargetObject(ambulance);
-        scene.camera.distance = 1;
-        scene.camera.elevation = 1.5;
-        scene.camera.panOffset = [0, 5, 0];
+        this.trackAgent(ambulance);
+      }
+    },
+    trackEmergency: function() {
+      if (ambulances.length > 0) {
+        for (const ambulance of ambulances) {
+          if (ambulance.has_emergency) {
+            this.trackAgent(ambulance);
+            return;
+          }
+        }
       }
     },
     stopTracking: function() {
@@ -630,13 +593,30 @@ function setupUI() {
       scene.camera.panOffset = [0, 8, 0];
       scene.camera.target = { x: 0, y: 0, z: 0 };
     },
+    trackAgent: function(agent) {
+      scene.camera.setTargetObject(agent);
+      scene.camera.distance = 1;
+      scene.camera.elevation = 1.5;
+      scene.camera.azimuth = 3.14;
+      scene.camera.panOffset = [0, 5, 0];
+    },
+    centerCamera: function() {
+      scene.camera.setTargetObject(null);
+      scene.camera.distance = 20;
+      scene.camera.elevation = 1.5;
+      scene.camera.azimuth = 3.14;
+      scene.camera.panOffset = [0, 8, 0];
+      scene.camera.target = { x: 11.5, y: 0, z: 11.5 };
+    }
   };
 
   // Add actions to the folder
-  actionsFolder.add(actions, 'trackCar').name('Track Random Car');
-  actionsFolder.add(actions, 'trackAmbulance').name('Track Random Ambulance');
-  actionsFolder.add(actions, 'stopTracking').name('Stop Tracking');
-  actionsFolder.add(actions, 'resetCamera').name('Reset Camera');
+  actionsFolder.add(actions, 'trackCar').name('Seguir Coche Aleatorio');
+  actionsFolder.add(actions, 'trackAmbulance').name('Seguir Ambulancia Aleatoria');
+  actionsFolder.add(actions, 'trackEmergency').name('Seguir Ambulancia en Emergencia');
+  actionsFolder.add(actions, 'stopTracking').name('Detener Seguimiento');
+  actionsFolder.add(actions, 'resetCamera').name('Reiniciar Cámara');
+  actionsFolder.add(actions, 'centerCamera').name('Centrar Cámara');
 }
 
 main();

@@ -5,7 +5,7 @@ Diego Córdova Rodríguez
 Lorena Estefanía Chewtat Torres
 Aquiba Yudah Benarroch Bittán
 
-2025-11-27
+2025-11-29
 """
 
 from flask import Flask, request, jsonify
@@ -126,6 +126,8 @@ def getAmbulances():
                     "y": 1,
                     "z": coordinate[1],
                     "direction": next((road.direction for road in randomModel.grid[coordinate].agents if isinstance(road, Road)), None),
+                    "light_state": a.light_state,
+                    "has_emergency": a.has_emergency,
                 }
                 for (coordinate, a) in ambulances
             ]
@@ -139,7 +141,10 @@ def getAmbulances():
             # Update tracking
             previous_ambulance_ids = current_ambulance_ids
 
-            return jsonify({'positions': ambulancePositions, 'removed': removed_ambulance_ids})
+            return jsonify({
+                'positions': ambulancePositions,
+                'removed': removed_ambulance_ids,
+            })
         except Exception as e:
             print(e)
             return jsonify({"message": "Error with ambulance positions"}), 500

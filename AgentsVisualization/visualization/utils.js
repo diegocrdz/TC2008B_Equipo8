@@ -10,6 +10,7 @@
 
 import * as twgl from 'twgl-base.js';
 import { Object3D } from '../libs/object3d.js';
+import { Light3D } from '../libs/light3d.js';
 import { loadMtl } from '../libs/obj_loader.js';
 
 // Helper function to create a texture
@@ -19,6 +20,16 @@ export function createTexture(gl, src) {
     mag: gl.LINEAR,
     src: src,
   });
+}
+
+// Helper function to create a light
+export function createLight(x, y, z, offsetX, offsetY, offsetZ, color, intensity) {
+  const light = new Light3D();
+  light.position = { x: x + offsetX, y: y + offsetY, z: z + offsetZ };
+  light.ambient = [0.1, 0.1, 0.1, 1.0];
+  light.diffuse = color;
+  light.specular = color;
+  return light;
 }
 
 // Function that gets the direction of a car and returns the correct rotation
@@ -226,16 +237,37 @@ export function getTrafficLightColor(state) {
 }
 
 // Helper function to update all traffic lights
-export function updateTrafficLights(trafficLights, greenTexture, redTexture) {
-  for (const tl of trafficLights) {
-    const pos = tl.position;
-    const heightOffset = pos.y + 0.8;
-    const lightColor = getTrafficLightColor(tl.state);
+export function updateTrafficLights(
+  trafficLights,
+  greenTexture,
+  redTexture,
+  scene,
+  baseCube
+) {
+  // Distance and height offsets for light and cube
+  const distance = -0.65;
+  const offsetY = 0.8;
+  const cubeOffsetY = 0.9;
 
-    // Update light
-    if (tl.light) {
-      const offset = getTrafficLightOffset(tl.direction, -0.65);
-      
+  for (const tl of trafficLights) {
+    // Set light position and color
+    const pos = tl.position;
+    const heightOffset = pos.y + offsetY;
+    const lightColor = getTrafficLightColor(tl.state);
+    const offset = getTrafficLightOffset(tl.direction, distance);
+
+    // Create light if it doesn't exist
+    if (!tl.light) {
+      tl.light = new Light3D(
+        [pos.x + offset.offsetX, heightOffset, pos.z + offset.offsetZ],
+        [0.1, 0.1, 0.1, 1.0], // Ambient
+        lightColor, // Diffuse
+        lightColor // Specular
+      );
+      scene.addLight(tl.light);
+
+    } else {
+      // Update existing light position and color
       tl.light.position = {
         x: pos.x + offset.offsetX,
         y: heightOffset,
@@ -246,17 +278,104 @@ export function updateTrafficLights(trafficLights, greenTexture, redTexture) {
       tl.light.specular = lightColor;
     }
 
-    // Update light cube
-    if (tl.lightCube) {
-      const offset = getTrafficLightOffset(tl.direction, -0.65);
+    // Create light cube if it doesn't exist
+    if (!tl.lightCube) {
+      tl.lightCube = new Object3D();
+      
+      // Copy geometry data from base cube
+      if (baseCube) {
+        tl.lightCube.arrays = baseCube.arrays;
+        tl.lightCube.bufferInfo = baseCube.bufferInfo;
+        tl.lightCube.vao = baseCube.vao;
+      }
       
       tl.lightCube.position = {
-        x: tl.position.x + offset.offsetX,
-        y: tl.position.y + 0.9,
-        z: tl.position.z + offset.offsetZ
+        x: pos.x + offset.offsetX,
+        y: pos.y + cubeOffsetY,
+        z: pos.z + offset.offsetZ
       };
 
+      tl.lightCube.scale = { x: 0.05, y: 0.1, z: 0.05 };
       tl.lightCube.texture = tl.state ? greenTexture : redTexture;
+      tl.lightCube.programType = 'texture';
+      
+      scene.addObject(tl.lightCube);
+      
+    } else {
+      // Update existing light cube position and texture
+      tl.lightCube.position = {
+        x: pos.x + offset.offsetX,
+        y: pos.y + cubeOffsetY,
+        z: pos.z + offset.offsetZ
+      };
+      tl.lightCube.texture = tl.state ? greenTexture : redTexture;
+    }
+  }
+}
+
+// Helper function to update ambulance siren lights
+export function updateAmbulanceLights(ambulances, scene, fract) {
+  const offsetY = 0.8;
+
+  for (const ambulance of ambulances) {
+    // If the ambulance has an emergency and does not have a siren light, create it
+    if (ambulance.has_emergency && !ambulance.sirenLight) {
+      // Set light position
+      const pos = ambulance.position;
+      const heightOffset = pos.y + offsetY;
+
+      // Determine light color based on light state
+      const lightColor = ambulance.light_state === "blue"
+        ? [0.0, 0.0, 1.0, 1.0] // Blue
+        : [1.0, 0.0, 0.0, 1.0]; // Red
+      
+      // Create siren light
+      const light = new Light3D(
+        [pos.x, heightOffset, pos.z],
+        [0.1, 0.1, 0.1, 1.0], // Ambient
+        lightColor, // Diffuse
+        lightColor // Specular
+      );
+
+      ambulance.sirenLight = light;
+      scene.addLight(light);
+
+    } else if (ambulance.sirenLight && ambulance.has_emergency) {
+      // If the siren exists, update its position and color
+      // Set light position
+      const pos = ambulance.position;
+      const heightOffset = pos.y + offsetY;
+
+      // Calculate light position with fract for interpolation
+      const newPos = ambulance.posArray;
+      const oldPos = ambulance.oldPosArray || newPos; // In the first frame oldPosArray is undefined
+
+      // Interpolate position in x and z (y remains constant)
+      const interpX = oldPos[0] + (newPos[0] - oldPos[0]) * fract;
+      const interpZ = oldPos[2] + (newPos[2] - oldPos[2]) * fract;
+
+      // Update light position
+      ambulance.sirenLight.position = {
+        x: interpX,
+        y: heightOffset,
+        z: interpZ
+      };
+      
+      // Determine light color based on light state
+      const lightColor = ambulance.light_state === "blue"
+        ? [0.0, 0.0, 1.0, 1.0] // Blue
+        : [1.0, 0.0, 0.0, 1.0]; // Red
+      
+      // Update light color
+      ambulance.sirenLight.diffuse = lightColor;
+      ambulance.sirenLight.specular = lightColor;
+      
+    } else if (ambulance.sirenLight && !ambulance.has_emergency) {
+      // Remove siren light if ambulance is no longer in emergency
+      if (scene) {
+        scene.removeLight(ambulance.sirenLight);
+      }
+      ambulance.sirenLight = null;
     }
   }
 }

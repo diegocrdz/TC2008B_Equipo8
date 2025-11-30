@@ -1,11 +1,11 @@
 from traffic_base.agent import *
 from traffic_base.model import CityModel
 from mesa.visualization import (
-    CommandConsole,
     Slider,
+    CommandConsole,
     SolaraViz,
-    SpaceRenderer,
     make_space_component,
+    make_plot_component,
 )
 from mesa.visualization.components import AgentPortrayalStyle
 
@@ -49,37 +49,59 @@ model_params = {
         "value": 42,
         "label": "Random Seed",
     },
-    "car_spawn_rate": Slider(
-        "Car Spawn Rate", 10, 0, 10, 1,
+    "vehicle_spawn_rate": Slider(
+        "Car Spawn Rate", 15, 1, 50, 1,
     ),
     "vehicles_per_step": Slider(
-        "Vehicles per step", 1, 0, 4, 1,
+        "Vehicles per step", 4, 0, 4, 1,
     ),
     "ambulance_per_step": Slider(
         "Ambulances per step", 1, 0, 4, 1,
+    ),
+    "emergency_chance": Slider(
+        "Emergency Chance (%)", 0.5, 0, 1, 0.1,
     ),
 }
 
 model = CityModel(
     model_params["N"],
     seed=model_params["seed"]["value"],
-    car_spawn_rate=model_params["car_spawn_rate"].value,
+    vehicle_spawn_rate=model_params["vehicle_spawn_rate"].value,
     vehicles_per_step=model_params["vehicles_per_step"].value,
     ambulance_per_step=model_params["ambulance_per_step"].value,
+    emergency_chance=model_params["emergency_chance"].value,
 )
 
+# Set equal aspect ratio for the grid
 def post_process(ax):
     ax.set_aspect("equal")
 
+# Customize line plot legend
+def post_process_lines(ax):
+    ax.legend(loc="center left", bbox_to_anchor=(1, 0.9))
+
+# Create line plot component to track data over time
+lineplot_component = make_plot_component(
+    {
+        "Total Cars": "tab:blue",
+        "Total Ambulances": "tab:red",
+        "Emergency Ambulances": "tab:orange",
+    },
+
+    post_process=post_process_lines,
+)
+
+# Create space component for visualizing the grid
 space_component = make_space_component(
     agent_portrayal,
     draw_grid=False,
     post_process=post_process,
 )
 
+# Create Solara visualization page
 page = SolaraViz(
     model,
-    components=[CommandConsole, space_component],
+    components=[CommandConsole, space_component, lineplot_component],
     model_params=model_params,
     name="Random Model",
 )
