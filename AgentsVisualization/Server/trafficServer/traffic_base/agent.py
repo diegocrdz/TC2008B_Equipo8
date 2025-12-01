@@ -544,6 +544,7 @@ class CarAgent(VehicleAgent):
         """Checks if the car has reached its destination."""
         for agent in self.cell.agents:
             if isinstance(agent, Destination):
+                self.model.cars_reached_destination += 1
                 self.remove()  # Remove car from the model
         
     def get_diagonal_cells(self):
@@ -595,6 +596,8 @@ class CarAgent(VehicleAgent):
         # If the car crashed with other cars or ambulances, add this car too
         if agents_to_remove:
             agents_to_remove.append(self)
+            # Increment crash counter
+            self.model.total_crashes += 1
         
         # Remove all agents in the list
         for agent in agents_to_remove:
@@ -764,6 +767,7 @@ class Ambulance(VehicleAgent):
         """Checks if the car has reached its destination."""
         for agent in self.cell.agents:
             if isinstance(agent, Hospital):
+                self.model.ambulances_reached_hospital += 1
                 self.light = False  # Turn off siren light
                 self.remove()  # Remove car from the model
 
@@ -1131,6 +1135,8 @@ class Ambulance(VehicleAgent):
         # If there are collisions with cars or ambulances, add this ambulance too
         if agents_to_remove:
             agents_to_remove.append(self)
+            # Increment crash counter
+            self.model.total_crashes += 1
         
         # Remove all agents in the list
         for agent in agents_to_remove:

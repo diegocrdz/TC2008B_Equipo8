@@ -38,12 +38,24 @@ class CityModel(Model):
         self.ambulance_per_step = ambulance_per_step
         self.emergency_chance = emergency_chance
         
+        # Counters for data collection
+        self.total_crashes = 0
+        self.cars_reached_destination = 0
+        self.ambulances_reached_hospital = 0
+        self.cars_spawned_this_step = 0
+        self.ambulances_spawned_this_step = 0
+        
         # Setup data collection
         model_reporters = {
             "Time (Steps)": lambda m: m.steps,
-            "Total Cars": lambda m: len([agent for agent in m.agents_by_type[CarAgent]]),
-            "Total Ambulances": lambda m: len([agent for agent in m.agents_by_type[Ambulance]]),
-            "Emergency Ambulances": lambda m: len([agent for agent in m.agents_by_type[Ambulance] if agent.has_emergency]),
+            "Total Cars": lambda m: len(m.agents_by_type.get(CarAgent, [])),
+            "Total Ambulances": lambda m: len(m.agents_by_type.get(Ambulance, [])),
+            "Emergency Ambulances": lambda m: len([agent for agent in m.agents_by_type.get(Ambulance, []) if agent.has_emergency]),
+            "Total Crashes": lambda m: m.total_crashes,
+            "Cars Reached Destination": lambda m: m.cars_reached_destination,
+            "Ambulances Reached Hospital": lambda m: m.ambulances_reached_hospital,
+            "Cars Spawned": lambda m: m.cars_spawned_this_step,
+            "Ambulances Spawned": lambda m: m.ambulances_spawned_this_step,
         }
         self.datacollector = DataCollector(model_reporters)
 
@@ -185,11 +197,13 @@ class CityModel(Model):
             if ambulances_spawned < self.ambulance_per_step:
                 ambulance = Ambulance(self, corner)
                 self.ambulances.append(ambulance)
+                self.ambulances_spawned_this_step += 1
                 ambulances_spawned += 1
             else:
                 # Spawn cars
                 car = CarAgent(self, corner)
                 self.cars.append(car)
+                self.cars_spawned_this_step += 1
                 cars_spawned += 1
 
     def step(self):
@@ -198,6 +212,12 @@ class CityModel(Model):
         # If the model is not running, do nothing
         if not self.running:
             return
+        
+        # Reset counters
+        self.cars_reached_destination = 0
+        self.ambulances_reached_hospital = 0
+        self.cars_spawned_this_step = 0
+        self.ambulances_spawned_this_step = 0
         
         # Do step
         self.spawn_vehicles()

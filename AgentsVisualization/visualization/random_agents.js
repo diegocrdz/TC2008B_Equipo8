@@ -64,6 +64,7 @@ import {
   createBaseModelWithMtl,
   updateTrafficLights,
   updateAmbulanceLights,
+  getLightsCloseToCamera,
 } from './utils.js';
 
 // Create the 3D scene
@@ -75,7 +76,15 @@ let gl = undefined;
 let duration = 400; // ms
 let elapsed = 0;
 let then = 0;
-const NUM_LIGHTS = 8;
+const NUM_LIGHTS = 27; // Max number of lights to consider in the shader
+
+// Simulation parameters
+let simulationParams = {
+  vehicle_spawn_rate: 15,
+  vehicles_per_step: 4,
+  ambulance_per_step: 1,
+  emergency_chance: 0.5,
+};
 
 // Store base models and textures globally for adding new agents
 let carModelsArray = [];
@@ -105,8 +114,6 @@ export function setupNewCarAgent(agent) {
 export function setupNewAmbulanceAgent(agent) {
   if (!ambulanceBaseModel) {
     // If model is not ready yet, still add to scene so it gets rendered
-    // The model will be assigned in the next update cycle
-    console.warn("Ambulance model not ready, adding without geometry");
     scene.addObject(agent);
     return;
   }
@@ -120,6 +127,54 @@ export function setupNewAmbulanceAgent(agent) {
   });
   
   scene.addObject(agent);
+}
+
+// Export simulation parameters
+export function getSimulationParams() {
+  return simulationParams;
+}
+
+// Function to restart the simulation with new parameters
+export async function restartSimulation() {  
+  // Clear all agents and obstacles from the scene
+  agents.length = 0;
+  ambulances.length = 0;
+  obstacles.length = 0;
+  trafficLights.length = 0;
+  roads.length = 0;
+  hospitals.length = 0;
+  destinations.length = 0;
+  sidewalks.length = 0;
+  
+  // Remove all objects from the scene
+  const objectsCopy = [...scene.objects];
+  for (const obj of objectsCopy) {
+    scene.removeObject(obj.id);
+  }
+  
+  // Remove all lights except the global light (index 0)
+  const lightsCopy = [...scene.lights];
+  for (let i = 1; i < lightsCopy.length; i++) {
+    scene.removeLight(lightsCopy[i]);
+  }
+  
+  // Reinitialize the model with new parameters
+  await initAgentsModel();
+  
+  // Get the agents and obstacles
+  await getAgents();
+  await getAmbulances();
+  await getObstacles();
+  await getTrafficLights();
+  await getRoads();
+  await getHospitals();
+  await getDestinations();
+  await getSidewalks();
+  
+  // Reset the position in the setup
+  setupObjects(scene, gl);
+  
+  console.log('Simulation restarted');
 }
 
 // Main function is async to be able to make the requests
@@ -516,13 +571,24 @@ async function drawScene() {
 
   // Texture shader
 
+  // Get lights close to camera
+  const closeLights = getLightsCloseToCamera(NUM_LIGHTS - 1, scene);
+
   // Prepare light arrays for the shader
   let lightPositions = [];
   let diffuseLights = [];
   let specularLights = [];
 
-  // Only add local lights
-  for (const light of scene.lights) {
+  // Always add global light (scene.lights[0]) at index 0
+  lightPositions.push(...scene.lights[0].posArray);
+  diffuseLights.push(...scene.lights[0].diffuse);
+  specularLights.push(...scene.lights[0].specular);
+
+  // Add local lights after the global light
+  for (const light of closeLights) {
+    // Skip the global light (index 0) if it was included in closeLights
+    if (light === scene.lights[0]) continue;
+    
     // ... used to add the each number of the data individually
     // Since the shaders expects a plain array
     // Ref: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Spread_syntax
@@ -592,33 +658,7 @@ function setupViewProjection(gl) {
 function setupUI() {
   const gui = new GUI();
 
-  // Simulation
-  const simFolder = gui.addFolder('Simulación');
-  const durationObj = { value: duration };
-  simFolder.add(durationObj, 'value', 100, 1000, 100).onChange((value) => { duration = value; }).name('Duración (ms)');
-
-  // Camera
-  const cameraFolder = gui.addFolder('Cámara');
-  cameraFolder.add(scene.camera, 'distance', 1, 50).decimals(2).name('Distancia');
-  cameraFolder.add(scene.camera, 'elevation', -Math.PI / 2, Math.PI / 2).decimals(2).name('Elevación');
-  cameraFolder.add(scene.camera, 'azimuth', -Math.PI, Math.PI).decimals(2).name('Azimut');
-
-  // Global light
-  const globalLightFolder = gui.addFolder('Luz global');
-  // Position
-  const posFolder = globalLightFolder.addFolder('Posición');
-  posFolder.add(scene.lights[0].position, 'x', -100, 100).decimals(2)
-  posFolder.add(scene.lights[0].position, 'y', -100, 100).decimals(2)
-  posFolder.add(scene.lights[0].position, 'z', -100, 100).decimals(2)
-  // Colors
-  const colorFolder = globalLightFolder.addFolder('Colores');
-  colorFolder.addColor(scene.lights[0], 'ambient').name('Ambiental');
-  colorFolder.addColor(scene.lights[0], 'diffuse').name('Difusa');
-  colorFolder.addColor(scene.lights[0], 'specular').name('Especular');
-
   // Actions
-  const actionsFolder = gui.addFolder('Acciones');
-  // Actions object
   const actions = {
     trackCar: function() {
       if (agents.length > 0) {
@@ -671,10 +711,47 @@ function setupUI() {
       scene.camera.azimuth = 3.14;
       scene.camera.panOffset = [0, 8, 0];
       scene.camera.target = { x: 11.5, y: 0, z: 11.5 };
+    },
+    restartSimulation: async function() {
+      await restartSimulation();
+      this.resetCamera();
     }
   };
 
+  // Simulation Parameters
+  const simFolder = gui.addFolder('Simulación');
+  const durationObj = { value: duration };
+  simFolder.add(durationObj, 'value', 100, 1000, 100).onChange((value) => { duration = value; })
+    .name('Duración (ms)');
+  simFolder.add(simulationParams, 'vehicle_spawn_rate', 1, 50, 1).name('Tasa Aparición')
+  simFolder.add(simulationParams, 'vehicles_per_step', 1, 4, 1).name('Vehículos x Paso');
+  simFolder.add(simulationParams, 'ambulance_per_step', 0, 4, 1).name('Ambulancias x Paso');
+  simFolder.add(simulationParams, 'emergency_chance', 0, 1, 0.1).name('Prob. Emergencia');
+  simFolder.add(actions, 'restartSimulation').name('Reiniciar Simulación');
+
+  // Camera
+  const cameraFolder = gui.addFolder('Cámara');
+  cameraFolder.add(scene.camera, 'distance', 1, 50).decimals(2).name('Distancia');
+  cameraFolder.add(scene.camera, 'elevation', -Math.PI / 2, Math.PI / 2).decimals(2).name('Elevación');
+  cameraFolder.add(scene.camera, 'azimuth', -Math.PI, Math.PI).decimals(2).name('Azimut');
+  cameraFolder.close();
+
+  // Global light
+  const globalLightFolder = gui.addFolder('Luz global');
+  // Position
+  const posFolder = globalLightFolder.addFolder('Posición');
+  posFolder.add(scene.lights[0].position, 'x', -100, 100).decimals(2)
+  posFolder.add(scene.lights[0].position, 'y', -100, 100).decimals(2)
+  posFolder.add(scene.lights[0].position, 'z', -100, 100).decimals(2)
+  // Colors
+  const colorFolder = globalLightFolder.addFolder('Colores');
+  colorFolder.addColor(scene.lights[0], 'ambient').name('Ambiental');
+  colorFolder.addColor(scene.lights[0], 'diffuse').name('Difusa');
+  colorFolder.addColor(scene.lights[0], 'specular').name('Especular');
+  globalLightFolder.close();
+
   // Add actions to the folder
+  const actionsFolder = gui.addFolder('Acciones');
   actionsFolder.add(actions, 'trackCar').name('Seguir Coche Aleatorio');
   actionsFolder.add(actions, 'trackAmbulance').name('Seguir Ambulancia Aleatoria');
   actionsFolder.add(actions, 'trackEmergency').name('Seguir Ambulancia en Emergencia');

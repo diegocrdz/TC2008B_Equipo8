@@ -32,7 +32,8 @@ let globalScene = null;
 // Setup functions for adding new agents
 import {
     setupNewCarAgent,
-    setupNewAmbulanceAgent
+    setupNewAmbulanceAgent,
+    getSimulationParams
 } from '../visualization/random_agents.js';
 
 // Define the data object
@@ -56,11 +57,23 @@ function setScene(scene) {
  */
 async function initAgentsModel() {
     try {
+        // Get simulation parameters from the UI
+        const simParams = getSimulationParams();
+        
+        // Prepare the initialization data with simulation parameters
+        const dataToSend = {
+            ...initData,
+            vehicle_spawn_rate: simParams.vehicle_spawn_rate,
+            vehicles_per_step: simParams.vehicles_per_step,
+            ambulance_per_step: simParams.ambulance_per_step,
+            emergency_chance: simParams.emergency_chance,
+        };
+        
         // Send a POST request to the agent server to initialize the model
         let response = await fetch(agent_server_uri + "init", {
             method: 'POST',
             headers: { 'Content-Type':'application/json' },
-            body: JSON.stringify(initData)
+            body: JSON.stringify(dataToSend)
         });
 
         // Check if the response was successful

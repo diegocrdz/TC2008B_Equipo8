@@ -87,7 +87,25 @@ lineplot_component = make_plot_component(
         "Total Ambulances": "tab:red",
         "Emergency Ambulances": "tab:orange",
     },
+    post_process=post_process_lines,
+)
 
+# Create crashes plot component to track crashes over time
+crashes_component = make_plot_component(
+    {
+        "Total Crashes": "tab:red",
+    },
+    post_process=post_process_lines,
+)
+
+# Create destinations plot component to track cars reaching destination and ambulances reaching hospital per step
+destinations_component = make_plot_component(
+    {
+        "Cars Reached Destination": "tab:green",
+        "Ambulances Reached Hospital": "tab:purple",
+        "Cars Spawned": "tab:blue",
+        "Ambulances Spawned": "tab:red",
+    },
     post_process=post_process_lines,
 )
 
@@ -101,7 +119,7 @@ space_component = make_space_component(
 # Create Solara visualization page
 page = SolaraViz(
     model,
-    components=[CommandConsole, space_component, lineplot_component],
+    components=[CommandConsole, space_component, lineplot_component, crashes_component, destinations_component],
     model_params=model_params,
     name="Random Model",
 )
