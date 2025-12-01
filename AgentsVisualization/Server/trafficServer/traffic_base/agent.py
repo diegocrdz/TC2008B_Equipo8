@@ -29,6 +29,10 @@ class VehicleAgent(CellAgent):
         self.path = []
         self.path_index = 0
 
+        self.tolerance_timer = 0  # Timer for tolerance to waiting
+        self.max_tolerance = 5  # Max tolerance before recalculating path
+        self.path_recalculated = False  # Flag to indicate if path was recalculated
+
         # Initialize lastDirection from the road in the current cell
         self.lastDirection = None
         road_agent = next(
@@ -42,6 +46,28 @@ class VehicleAgent(CellAgent):
         """Moves the agent to the next cell."""
         if next_cell is not None:
             self.cell = next_cell
+
+    def assignRandomDestination(self, destination_type='destination'):
+        """Assigns a random destination from available Destination agents."""
+        # Get all Destination agents from the model
+        destinations = []
+
+        if destination_type == 'hospital':
+            destinations = [
+                agent for agent in self.model.agents 
+                if isinstance(agent, Hospital)
+            ]
+        else:
+            destinations = [
+                agent for agent in self.model.agents 
+                if isinstance(agent, Destination)
+            ]
+        
+        if destinations:
+            return random.choice(destinations)
+        
+        return None
+
     
     def a_star(self, start, goal):
         """
@@ -147,7 +173,7 @@ class VehicleAgent(CellAgent):
 
                 # If we reached the goal, finish
                 if (current == goal):
-                    print("Goal reached!")
+                    #print("Goal reached!")
                     break
 
                 # Get valid neighbors based on road directions
@@ -166,17 +192,47 @@ class VehicleAgent(CellAgent):
                         heapq.heappush(stack, (f_value, neighbor))
 
         # Reconstruct path
-        if goal in fathers:
-            path = []
-            current = goal
-            while current != start:
-                path.append(current)
-                current = fathers[current]
-            path.reverse()
-            return path
-        
-        # If no path found, return empty list
-        return []
+        # If goal not reached, return path until last reached node
+        path = []
+        current = goal
+        while current != start:
+            path.append(current)
+            current = fathers.get(current, start)
+        path.reverse()
+        return path
+    
+    def pathToDestination(self, agent_type = 'car'):
+        """Initialize destination and calculate path using A*."""
+        if self.destination is None:
+            if (agent_type == 'ambulance'):
+                self.destination = self.assignRandomDestination('hospital')
+            else:
+                self.destination = self.assignRandomDestination('destination')
+
+            if self.destination:
+                start = self.cell.coordinate
+                goal = self.destination.cell.coordinate
+                #print(f"\n>>> Car at {start} assigned destination {goal}")
+                self.path = self.a_star(start, goal)
+
+                #if self.path:
+                    #print(f">>> Path found with {len(self.path)} steps")
+                #else:
+                    #print(f">>> NO PATH from {start} to {goal}")
+
+                self.path_index = 0
+    
+    def reduceWaitingTimer(self, agent_type='car'):
+        """Reduces the waiting tolerance timer if greater than zero."""
+        if self.tolerance_timer > 0:
+            self.tolerance_timer += 1
+        if self.tolerance_timer >= self.max_tolerance:
+            #Recalculate A* path if timer expired
+            self.tolerance_timer = 0
+            self.path = []
+            self.pathToDestination(agent_type)
+            print(f">>> {agent_type} agent {self.unique_id} recalculated path due to waiting tolerance.")
+            
 
 class CarAgent(VehicleAgent):
     """
@@ -192,36 +248,7 @@ class CarAgent(VehicleAgent):
         super().__init__(model, cell)
         self.moved_for_ambulance = False  # Track if already moved to let ambulance pass
     
-    def assignRandomDestination(self):
-        """Assigns a random destination from available Destination agents."""
-        # Get all Destination agents from the model
-        destinations = [
-            agent for agent in self.model.agents 
-            if isinstance(agent, Destination)
-        ]
-        
-        if destinations:
-            return random.choice(destinations)
-        
-        return None
     
-    def pathToDestination(self):
-        """Initialize destination and calculate path using A*."""
-        if self.destination is None:
-            self.destination = self.assignRandomDestination()
-
-            if self.destination:
-                start = self.cell.coordinate
-                goal = self.destination.cell.coordinate
-                print(f"\n>>> Car at {start} assigned destination {goal}")
-                self.path = self.a_star(start, goal)
-
-                if self.path:
-                    print(f">>> Path found with {len(self.path)} steps")
-                else:
-                    print(f">>> NO PATH from {start} to {goal}")
-
-                self.path_index = 0
 
     def getNextReturnStep(self):
         """Get the next step using A* path, checking traffic lights and cars."""
@@ -619,7 +646,7 @@ class CarAgent(VehicleAgent):
 
         # Initialize destination and path if not already done
         if self.destination is None:
-            self.pathToDestination()
+            self.pathToDestination('car')
         
         # If no path exists, cannot move
         if not self.path:
@@ -655,6 +682,10 @@ class CarAgent(VehicleAgent):
             next_cell = self.checkAmbulance()
             if next_cell is None:
                 return
+            
+            # Check waiting_timer before recalculating path
+            self.reduceWaitingTimer('car')
+
             # Check again if car moved
             next_cell = self.getNextReturnStep()
             
@@ -732,36 +763,6 @@ class Ambulance(VehicleAgent):
         self._has_emergency = value
         self.state = "emergency" if value else "idle"
     
-    def assignRandomHospital(self):
-        """Assigns a random hospital from available Hospital agents."""
-        # Get all Hospital agents from the model
-        hospitals = [
-            agent for agent in self.model.agents 
-            if isinstance(agent, Hospital)
-        ]
-        
-        if hospitals:
-            return random.choice(hospitals)
-        
-        return None
-    
-    def pathToHospital(self):
-        """Initialize hospital destination and calculate path using A*."""
-        if self.destination is None:
-            self.destination = self.assignRandomHospital()
-
-            if self.destination:
-                start = self.cell.coordinate
-                goal = self.destination.cell.coordinate
-                print(f"\n>>> Ambulance at {start} assigned hospital {goal}")
-                self.path = self.a_star(start, goal)
-
-                if self.path:
-                    print(f">>> Path found with {len(self.path)} steps")
-                else:
-                    print(f">>> NO PATH from {start} to {goal}")
-
-                self.path_index = 0
     
     def checkDestination(self):
         """Checks if the car has reached its destination."""
@@ -1213,7 +1214,7 @@ class Ambulance(VehicleAgent):
 
         # Initialize destination and path if not already done
         if self.destination is None:
-            self.pathToHospital()
+            self.pathToDestination('ambulance')
         
         # If no path exists, cannot move
         if not self.path:
@@ -1272,6 +1273,10 @@ class Ambulance(VehicleAgent):
             next_cell = self.checkAmbulance()
             if next_cell is None:
                 return
+            
+            # Check waiting_timer before recalculating path
+            self.reduceWaitingTimer('ambulance')
+
             # Check again if car moved
             next_cell = self.getNextCellFromPath()
             
