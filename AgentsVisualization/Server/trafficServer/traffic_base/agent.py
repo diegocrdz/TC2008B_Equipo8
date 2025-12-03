@@ -167,7 +167,7 @@ class VehicleAgent(CellAgent):
             """Get valid neighboring respecting road directions."""
             # Arbitrary high cost for invalid neighbors
             NEIGHBOR_C = 5
-            INTERSECTION_C = 10
+            INTERSECTION_C = 2
             valid_neighbors = []
             neighbor_extra_cost = {}
 
