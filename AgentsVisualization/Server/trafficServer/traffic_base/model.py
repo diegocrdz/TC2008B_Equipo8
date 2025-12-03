@@ -248,6 +248,7 @@ class CityModel(Model):
 
         cars_spawned = 0
         ambulances_spawned = 0
+        corners_full = 0
         corners_to_use = self.corners.copy()
 
         # Spawn vehicles at each corner
@@ -263,7 +264,10 @@ class CityModel(Model):
                 for agent in corner.agents
             )
             if has_vehicle:
-                cars_spawned += 1
+                corners_full += 1
+                if corners_full >= len(self.corners):
+                    self.running
+                    return
                 continue
 
             # Spawn ambulances
@@ -293,8 +297,8 @@ class CityModel(Model):
         self.ambulances_spawned_this_step = 0
         
         # Do step
-        self.spawnVehicles()
         self.agents.shuffle_do("step")
+        self.spawnVehicles()
 
         # Collect data
         self.datacollector.collect(self)
