@@ -31,14 +31,14 @@ def agent_portrayal(agent):
     if isinstance(agent, Obstacle):
         portrayal.color = "#555"
 
+    if isinstance(agent, Hospital):
+        portrayal.color = "purple"
+
     if isinstance(agent, Ambulance):
         portrayal.color = "orange"
 
-    if (isinstance(agent, CarAgent)):
+    elif isinstance(agent, CarAgent):
         portrayal.color = "blue"
-    
-    if isinstance(agent, Hospital):
-        portrayal.color = "purple"
 
     return portrayal
 
@@ -50,7 +50,7 @@ model_params = {
         "label": "Random Seed",
     },
     "vehicle_spawn_rate": Slider(
-        "Car Spawn Rate", 15, 1, 50, 1,
+        "Car Spawn Rate", 10, 1, 50, 1,
     ),
     "vehicles_per_step": Slider(
         "Vehicles per step", 4, 0, 4, 1,
