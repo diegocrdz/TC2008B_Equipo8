@@ -142,7 +142,6 @@ class VehicleAgent(CellAgent):
 
         return path
 
-    
     def a_star(self, start, goal, find_closest=True):
         """
         A* pathfinding algorithm adapted for the grid in the model
@@ -166,7 +165,11 @@ class VehicleAgent(CellAgent):
         
         def getValidNeighbors(current_coord):
             """Get valid neighboring respecting road directions."""
+            # Arbitrary high cost for invalid neighbors
+            NEIGHBOR_C = 5
+            INTERSECTION_C = 10
             valid_neighbors = []
+            neighbor_extra_cost = {}
 
             # If the current coordinate is not a road, return empty
             if (
@@ -178,7 +181,7 @@ class VehicleAgent(CellAgent):
 
             direction = self.model.road_directions.get(current_coord)
             if direction is None:
-                return [], 0  # No road, no neighbors
+                return [], 0
             
             x, y = current_coord
             
@@ -201,6 +204,7 @@ class VehicleAgent(CellAgent):
             
             # Check each neighbor
             for nx, ny in neighbor_coords:
+                extra_cost = 0
 
                 # Check bounds
                 if not (0 <= nx < self.model.grid.width and 0 <= ny < self.model.grid.height):
@@ -218,9 +222,11 @@ class VehicleAgent(CellAgent):
                     if isinstance(agent, (CarAgent, Ambulance))
                 )
                 if has_vehicle:
-                    extra_cost = 10  # Arbitrary high cost for occupied cells
-                else:
-                    extra_cost = 0
+                    extra_cost += NEIGHBOR_C
+                
+                # Check for intersections
+                if neighbor_coord in self.model.intersection_cells:
+                    extra_cost += INTERSECTION_C
 
                 # Check if the road is traversable
                 if not (
@@ -250,8 +256,9 @@ class VehicleAgent(CellAgent):
                 
                 # If all checks passed, add to valid neighbors
                 valid_neighbors.append(neighbor_coord)
+                neighbor_extra_cost[neighbor_coord] = extra_cost
 
-            return valid_neighbors, extra_cost
+            return valid_neighbors, neighbor_extra_cost
 
         # Initialize variables
         stack = [] # Stack of nodes to explore
@@ -292,7 +299,7 @@ class VehicleAgent(CellAgent):
                     break
 
                 # Get valid neighbors based on road directions
-                valid_neighbors, extra_cost = getValidNeighbors(current)
+                valid_neighbors, neighbor_extra_cost = getValidNeighbors(current)
 
                 # Explore neighbors
                 for neighbor in valid_neighbors:
@@ -300,14 +307,16 @@ class VehicleAgent(CellAgent):
 
                     # Add small noise to cost to diversify paths
                     lane_noise = self.random.uniform(0, self.lane_noice_scale)
-                    step_cost = base_cost + lane_noise
+                    extra_cost = neighbor_extra_cost.get(neighbor, 0)
 
-                    actual_coordinate = c_list[current] + step_cost + extra_cost
+                    # Get step cost
+                    step_cost = base_cost + lane_noise + extra_cost
+                    c_new = c_list[current] + step_cost
 
-                    if actual_coordinate < c_list.get(neighbor, float('inf')):
-                        c_list[neighbor] = actual_coordinate
+                    if c_new < c_list.get(neighbor, float('inf')):
+                        c_list[neighbor] = c_new
                         fathers[neighbor] = current
-                        f_value = actual_coordinate + heuristic(neighbor, goal)
+                        f_value = c_new + heuristic(neighbor, goal)
 
                         # Add to stack
                         heapq.heappush(stack, (f_value, neighbor))
