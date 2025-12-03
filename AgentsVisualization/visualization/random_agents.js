@@ -80,7 +80,7 @@ const NUM_LIGHTS = 27; // Max number of lights to consider in the shader
 
 // Simulation parameters
 let simulationParams = {
-  vehicle_spawn_rate: 15,
+  vehicle_spawn_rate: 2,
   vehicles_per_step: 4,
   ambulance_per_step: 1,
   emergency_chance: 0.5,
@@ -714,14 +714,13 @@ function setupUI() {
     },
     restartSimulation: async function() {
       await restartSimulation();
-      this.resetCamera();
     }
   };
 
   // Simulation Parameters
   const simFolder = gui.addFolder('Simulación');
   const durationObj = { value: duration };
-  simFolder.add(durationObj, 'value', 100, 1000, 100).onChange((value) => { duration = value; })
+  simFolder.add(durationObj, 'value', 1, 1000, 100).onChange((value) => { duration = value; })
     .name('Duración (ms)');
   simFolder.add(simulationParams, 'vehicle_spawn_rate', 1, 50, 1).name('Tasa Aparición')
   simFolder.add(simulationParams, 'vehicles_per_step', 1, 4, 1).name('Vehículos x Paso');

@@ -122,7 +122,7 @@ class VehicleAgent(CellAgent):
         
         return None
 
-    def calculatePath(self, start, goal, find_closest=False):
+    def calculatePath(self, start, goal, find_closest=True):
         """
         Determines the path from start to goal.
 
@@ -142,8 +142,7 @@ class VehicleAgent(CellAgent):
 
         return path
 
-    
-    def a_star(self, start, goal, find_closest=False):
+    def a_star(self, start, goal, find_closest=True):
         """
         A* pathfinding algorithm adapted for the grid in the model
 
@@ -166,7 +165,11 @@ class VehicleAgent(CellAgent):
         
         def getValidNeighbors(current_coord):
             """Get valid neighboring respecting road directions."""
+            # Arbitrary high cost for invalid neighbors
+            NEIGHBOR_C = 5
+            INTERSECTION_C = 2
             valid_neighbors = []
+            neighbor_extra_cost = {}
 
             # If the current coordinate is not a road, return empty
             if (
@@ -174,11 +177,11 @@ class VehicleAgent(CellAgent):
                 and current_coord not in self.model.destination_cells
                 and current_coord not in self.model.hospital_cells
             ):
-                return []
+                return [], 0
 
             direction = self.model.road_directions.get(current_coord)
             if direction is None:
-                return []  # No road, no neighbors
+                return [], 0
             
             x, y = current_coord
             
@@ -201,6 +204,7 @@ class VehicleAgent(CellAgent):
             
             # Check each neighbor
             for nx, ny in neighbor_coords:
+                extra_cost = 0
 
                 # Check bounds
                 if not (0 <= nx < self.model.grid.width and 0 <= ny < self.model.grid.height):
@@ -211,6 +215,18 @@ class VehicleAgent(CellAgent):
                 # Check obstacles
                 if neighbor_coord in self.model.obstacle_cells:
                     continue
+
+                # Check any vehicles
+                has_vehicle = any(
+                    agent for agent in self.model.grid[neighbor_coord].agents
+                    if isinstance(agent, (CarAgent, Ambulance))
+                )
+                if has_vehicle:
+                    extra_cost += NEIGHBOR_C
+                
+                # Check for intersections
+                if neighbor_coord in self.model.intersection_cells:
+                    extra_cost += INTERSECTION_C
 
                 # Check if the road is traversable
                 if not (
@@ -240,8 +256,9 @@ class VehicleAgent(CellAgent):
                 
                 # If all checks passed, add to valid neighbors
                 valid_neighbors.append(neighbor_coord)
+                neighbor_extra_cost[neighbor_coord] = extra_cost
 
-            return valid_neighbors
+            return valid_neighbors, neighbor_extra_cost
 
         # Initialize variables
         stack = [] # Stack of nodes to explore
@@ -282,7 +299,7 @@ class VehicleAgent(CellAgent):
                     break
 
                 # Get valid neighbors based on road directions
-                valid_neighbors = getValidNeighbors(current)
+                valid_neighbors, neighbor_extra_cost = getValidNeighbors(current)
 
                 # Explore neighbors
                 for neighbor in valid_neighbors:
@@ -290,14 +307,16 @@ class VehicleAgent(CellAgent):
 
                     # Add small noise to cost to diversify paths
                     lane_noise = self.random.uniform(0, self.lane_noice_scale)
-                    step_cost = base_cost + lane_noise
+                    extra_cost = neighbor_extra_cost.get(neighbor, 0)
 
-                    actual_coordinate = c_list[current] + step_cost
+                    # Get step cost
+                    step_cost = base_cost + lane_noise + extra_cost
+                    c_new = c_list[current] + step_cost
 
-                    if actual_coordinate < c_list.get(neighbor, float('inf')):
-                        c_list[neighbor] = actual_coordinate
+                    if c_new < c_list.get(neighbor, float('inf')):
+                        c_list[neighbor] = c_new
                         fathers[neighbor] = current
-                        f_value = actual_coordinate + heuristic(neighbor, goal)
+                        f_value = c_new + heuristic(neighbor, goal)
 
                         # Add to stack
                         heapq.heappush(stack, (f_value, neighbor))
@@ -305,12 +324,10 @@ class VehicleAgent(CellAgent):
         # Reconstruct path
         path = []
         # Determine each point to track from
-        if find_closest:
+        # If goal not reached, return empty path
+        if goal not in fathers and goal != start:
             current = closest_node
         else:
-            # If goal not reached, return empty path
-            if goal not in fathers and goal != start:
-                return []  # No path found
             current = goal
         
         # If start is goal, return empty path
@@ -338,7 +355,7 @@ class VehicleAgent(CellAgent):
                 start = self.cell.coordinate
                 goal = self.destination.cell.coordinate
                 # Recalculate path to destination
-                self.path = self.calculatePath(start, goal, find_closest=False)
+                self.path = self.calculatePath(start, goal, find_closest=True)
                 self.path_index = 0
     
     def reduceWaitingTimer(self, agent_type='car'):
@@ -374,7 +391,7 @@ class CarAgent(VehicleAgent):
         self.moved_for_ambulance = False  # Track if already moved to let ambulance pass
         
         # Parameters for lane changing
-        self.lane_change_cooldown = 10 # Cooldown steps between lane changes
+        self.lane_change_cooldown = 4 # Cooldown steps between lane changes
         self.lane_change_steps_since = 999 # Steps since last lane change, starts high to allow immediate change
         self.preferred_lane_side = self.random.choice(["left", "right"]) # Assign random lane preference
 
@@ -804,6 +821,7 @@ class CarAgent(VehicleAgent):
     def tryLaneChange(self):
         """
         Attempts to change lanes if there is a vehicle directly in front.
+        Only allows diagonal movements forward (ahead + lateral), not pure lateral moves.
         Returns the new cell if lane change is successful, otherwise None.
         """
 
@@ -842,6 +860,14 @@ class CarAgent(VehicleAgent):
         has_vehicle_ahead = any(isinstance(a, (CarAgent, Ambulance)) for a in next_cell.agents)
         if not has_vehicle_ahead:
             return None
+        
+        # The car needs to have the same direction as us to consider lane changing
+        road_ahead = next(
+            (agent for agent in next_cell.agents if isinstance(agent, Road)),
+            None
+        )
+        if road_ahead is None or road_ahead.direction != road_dir:
+            return None
 
         # Get lateral direction vectors
         lateral_left  = (-dy_f, dx_f)
@@ -853,30 +879,30 @@ class CarAgent(VehicleAgent):
         else:
             lateral_vectors = [lateral_right, lateral_left]
 
-        # Try to move to a lateral cell
+        # Try to move diagonally forward (ahead + lateral)
         for dx_lat, dy_lat in lateral_vectors:
-            # Get lateral cell coordinates
-            lat_x = x + dx_lat
-            lat_y = y + dy_lat
+            # Get diagonal cell coordinates (ahead + lateral)
+            diag_x = x + dx_f + dx_lat
+            diag_y = y + dy_f + dy_lat
 
             # Check bounds
-            if not (0 <= lat_x < self.model.grid.width and 0 <= lat_y < self.model.grid.height):
+            if not (0 <= diag_x < self.model.grid.width and 0 <= diag_y < self.model.grid.height):
                 continue
             
-            lat_coord = (lat_x, lat_y)
+            diag_coord = (diag_x, diag_y)
 
-            # If lateral cell is not a road, skip
-            if lat_coord not in self.model.road_cells:
+            # If diagonal cell is not a road, skip
+            if diag_coord not in self.model.road_cells:
                 continue
 
-            lat_cell = self.model.grid[lat_coord]
+            diag_cell = self.model.grid[diag_coord]
 
-            # If lateral cell has any vehicle, skip
-            if any(isinstance(a, (CarAgent, Ambulance, Obstacle)) for a in lat_cell.agents):
+            # If diagonal cell has any vehicle, skip
+            if any(isinstance(a, (CarAgent, Ambulance, Obstacle)) for a in diag_cell.agents):
                 continue
 
-            # If we reach here, this lateral cell is valid
-            return lat_cell
+            # If we reach here, this diagonal cell is valid
+            return diag_cell
 
         # No lane change possible
         return None
