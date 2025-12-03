@@ -714,7 +714,6 @@ function setupUI() {
     },
     restartSimulation: async function() {
       await restartSimulation();
-      this.resetCamera();
     }
   };
 

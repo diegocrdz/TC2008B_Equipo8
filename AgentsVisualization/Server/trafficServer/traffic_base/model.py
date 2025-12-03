@@ -82,6 +82,7 @@ class CityModel(Model):
         self.destination_cells = set()
         self.hospital_cells = set()
         self.obstacle_cells = set()
+        self.intersection_cells = set()
 
         # Counters to keep track of spawned vehicles
         self.car_spawned_count = 0
@@ -204,8 +205,39 @@ class CityModel(Model):
             self.grid[self.width - 1, self.height - 1], # top right
         ]
 
+        # Detect intersections after all roads are created
+        self.detectIntersections()
+        
         self.spawnVehicles()
         self.running = True
+    
+    def detectIntersections(self):
+        """
+        Detect intersections in the city.
+        An intersection is a road cell where 3 or more roads meet.
+        """
+        for coord in self.road_cells:
+            x, y = coord
+            
+            # Count neighboring road cells
+            neighbors = 0
+            neighbor_coords = [
+                (x, y + 1),  # Up
+                (x, y - 1),  # Down
+                (x - 1, y),  # Left
+                (x + 1, y)   # Right
+            ]
+            
+            for nx, ny in neighbor_coords:
+                # Check if neighbor is within bounds and is a road
+                if 0 <= nx < self.width and 0 <= ny < self.height:
+                    neighbor_coord = (nx, ny)
+                    if neighbor_coord in self.road_cells:
+                        neighbors += 1
+            
+            # If a road cell has 3 or more neighbors, it's an intersection
+            if neighbors >= 3:
+                self.intersection_cells.add(coord)
     
     def spawnVehicles(self):
         """Spawn vehicles at the corners of the grid based on the spawn rates."""
@@ -224,6 +256,15 @@ class CityModel(Model):
             # Get random corner
             corner = self.random.choice(corners_to_use)
             corners_to_use.remove(corner)
+
+            # Check if that corner is full
+            has_vehicle = any(
+                isinstance(agent, (CarAgent, Ambulance))
+                for agent in corner.agents
+            )
+            if has_vehicle:
+                cars_spawned += 1
+                continue
 
             # Spawn ambulances
             if ambulances_spawned < self.ambulance_per_step:
