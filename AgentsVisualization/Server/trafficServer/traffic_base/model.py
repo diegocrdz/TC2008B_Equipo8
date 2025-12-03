@@ -88,7 +88,7 @@ class CityModel(Model):
         self.ambulance_spawned_count = 0
 
         # Load the map file. The map file is a text file where each character represents an agent.
-        with open("city_files/2022_base.txt") as baseFile:
+        with open("city_files/2025_base.txt") as baseFile:
             lines = baseFile.readlines()
             lines = [line.strip() for line in lines if line.strip()]
             self.width = len(lines[0])

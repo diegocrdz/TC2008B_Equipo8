@@ -81,6 +81,23 @@ export function getRotation(oldPos, newPos) {
     return null;
   }
 
+  // If diagonal movement (both dx and dz are non-zero)
+  if (Math.abs(dx) > 0 && Math.abs(dz) > 0) {
+    // up-right
+    if (dx > 0 && dz > 0) {
+      return Math.PI / 4; // 45 degrees
+    } else if (dx < 0 && dz > 0) {
+      // up-left
+      return (3 * Math.PI) / 4; // 135 degrees
+    } else if (dx < 0 && dz < 0) {
+      // down-left
+      return (-3 * Math.PI) / 4; // 225 degrees
+    } else if (dx > 0 && dz < 0) {
+      // down-right
+      return -Math.PI / 4; // 315 degrees
+    }
+  }
+
   let direction = "";
 
   if (Math.abs(dx) > Math.abs(dz)) {
