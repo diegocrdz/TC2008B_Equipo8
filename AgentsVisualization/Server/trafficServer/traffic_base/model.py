@@ -62,6 +62,8 @@ class CityModel(Model):
         # Load the map dictionary. The dictionary maps the characters in the map file to the corresponding agent.
         dataDictionary = json.load(open("city_files/mapDictionary.json"))
 
+        # Initialize agent lists
+        # Used for access to agents in the visualization
         self.num_agents = N
         self.traffic_lights = []
         self.roads = []
@@ -71,6 +73,15 @@ class CityModel(Model):
         self.destinations = []
         self.sidewalks = []
         self.ambulances = []
+
+        # Store coordinates to make the model more efficient
+        # This is used by A* to quickly check road directions and valid cells
+        # Getting agents directly from a set is much faster than iterating through all agents in a cell
+        self.road_directions = {}
+        self.road_cells = set()
+        self.destination_cells = set()
+        self.hospital_cells = set()
+        self.obstacle_cells = set()
 
         # Counters to keep track of spawned vehicles
         self.car_spawned_count = 0
@@ -92,10 +103,14 @@ class CityModel(Model):
                 for c, col in enumerate(row):
 
                     cell = self.grid[(c, self.height - r - 1)]
+                    cell_coord = (c, self.height - r - 1)
 
                     if col in ["v", "^", ">", "<"]:
                         agent = Road(self, cell, dataDictionary[col])
                         self.roads.append(agent)
+                        
+                        self.road_cells.add(cell_coord)
+                        self.road_directions[cell_coord] = agent.direction
 
                     elif col in ["S", "s"]:
                         # Count surrounding road directions
@@ -130,39 +145,56 @@ class CityModel(Model):
                         self.traffic_lights.append(agent)
                         self.roads.append(road_agent)
 
+                        self.road_cells.add(cell_coord)
+                        self.road_directions[cell_coord] = road_agent.direction
+
                     elif col == "#":
                         sidewalk_agent = SideWalk(self, cell)
                         agent = Obstacle(self, cell)
                         self.obstacles.append(agent)
                         self.sidewalks.append(sidewalk_agent)
 
+                        self.obstacle_cells.add(cell_coord)
+
                     elif col == "D":
                         sidewalk_agent = SideWalk(self, cell)
                         agent = Destination(self, cell)
                         self.destinations.append(agent)
                         self.sidewalks.append(sidewalk_agent)
+
+                        self.destination_cells.add(cell_coord)
                     
                     elif col == "H":
                         sidewalk_agent = SideWalk(self, cell)
                         agent = Hospital(self, cell)
                         self.hospitals.append(agent)
                         self.sidewalks.append(sidewalk_agent)
+
+                        self.hospital_cells.add(cell_coord)
                     
                     elif col == "C":
                         # First create the Road agent below the car
-                        # We check for the direction, the car is represented by 'C' and there is no direction info.
+                        # We check for the direction, the car is represented 
+                        # by 'C' and there is no direction info.
                         road_agent = Road(self, cell, dataDictionary[">"]) 
                         agent = CarAgent(self, cell)
                         self.cars.append(agent)
                         self.roads.append(road_agent)
 
+                        self.road_cells.add(cell_coord)
+                        self.road_directions[cell_coord] = road_agent.direction
+
                     elif col == "A":
                         # First create the Road agent below the ambulance
-                        # We use a default direction because in the map, the ambulance is represented by 'A' and there is no direction info.
+                        # We use a default direction because in the map, the ambulance 
+                        # is represented by 'A' and there is no direction info.
                         road_agent = Road(self, cell, dataDictionary["v"]) 
                         agent = Ambulance(self, cell)
                         self.ambulances.append(agent)
                         self.roads.append(road_agent)
+
+                        self.road_cells.add(cell_coord)
+                        self.road_directions[cell_coord] = road_agent.direction
         
         # Get corners of the grid
         self.corners = [
@@ -172,10 +204,10 @@ class CityModel(Model):
             self.grid[self.width - 1, self.height - 1], # top right
         ]
 
-        self.spawn_vehicles()
+        self.spawnVehicles()
         self.running = True
     
-    def spawn_vehicles(self):
+    def spawnVehicles(self):
         """Spawn vehicles at the corners of the grid based on the spawn rates."""
 
         # Check if the vehicles can be spawn based on the step
@@ -220,7 +252,7 @@ class CityModel(Model):
         self.ambulances_spawned_this_step = 0
         
         # Do step
-        self.spawn_vehicles()
+        self.spawnVehicles()
         self.agents.shuffle_do("step")
 
         # Collect data
