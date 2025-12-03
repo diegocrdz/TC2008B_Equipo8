@@ -80,6 +80,17 @@ def post_process(ax):
 def post_process_lines(ax):
     ax.legend(loc="center left", bbox_to_anchor=(1, 0.9))
 
+# Customize line plot legend with 50 steps window
+def post_process_lines_windowed(ax):
+    ax.legend(loc="center left", bbox_to_anchor=(1, 0.9))
+    # Documentation to get_lines: https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.get_lines
+    lines = ax.get_lines()
+    # Documentation to get_xdata: https://matplotlib.org/stable/api/_as_gen/matplotlib.lines.Line2D.html#matplotlib.lines.Line2D
+    if lines and len(lines[0].get_xdata()) > 50:
+        total_steps = len(lines[0].get_xdata())
+    # Documentation to set_xlim: https://matplotlib.org/stable/api/_as_gen/matplotlib.axes.Axes.set_xlim.html
+        ax.set_xlim(xmin=total_steps - 50, xmax=total_steps)
+
 # Create line plot component to track data over time
 lineplot_component = make_plot_component(
     {
@@ -98,15 +109,22 @@ crashes_component = make_plot_component(
     post_process=post_process_lines,
 )
 
-# Create destinations plot component to track cars reaching destination and ambulances reaching hospital per step
+# Create destinations plot component to track spawned cars and ambulances per step
 destinations_component = make_plot_component(
     {
-        "Cars Reached Destination": "tab:green",
-        "Ambulances Reached Hospital": "tab:purple",
         "Cars Spawned": "tab:blue",
-        "Ambulances Spawned": "tab:red",
+        "Ambulances Spawned": "tab:red"
     },
-    post_process=post_process_lines,
+    post_process=post_process_lines_windowed,
+)
+
+# Create destinations plot component to track cars reaching destination and ambulances reaching hospital per step
+reached_component = make_plot_component(
+    {
+        "Cars Reached Destination": "tab:green",
+        "Ambulances Reached Hospital": "tab:purple"
+    },
+    post_process=post_process_lines_windowed,
 )
 
 # Create space component for visualizing the grid
@@ -119,7 +137,7 @@ space_component = make_space_component(
 # Create Solara visualization page
 page = SolaraViz(
     model,
-    components=[CommandConsole, space_component, lineplot_component, crashes_component, destinations_component],
+    components=[CommandConsole, space_component, lineplot_component, crashes_component, destinations_component, reached_component],
     model_params=model_params,
     name="Random Model",
 )
