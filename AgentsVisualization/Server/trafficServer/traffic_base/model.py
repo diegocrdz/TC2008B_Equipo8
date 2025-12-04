@@ -45,6 +45,12 @@ class CityModel(Model):
         self.cars_spawned_this_step = 0
         self.ambulances_spawned_this_step = 0
         
+        # Historical counters (total spawned, including those that reached destination)
+        self.total_cars_historical = 0
+        self.total_ambulances_historical = 0
+        self.total_reached_ambulances_historical = 0
+        self.total_reached_cars_historical = 0
+        
         # Setup data collection
         model_reporters = {
             "Time (Steps)": lambda m: m.steps,
@@ -56,6 +62,10 @@ class CityModel(Model):
             "Ambulances Reached Hospital": lambda m: m.ambulances_reached_hospital,
             "Cars Spawned": lambda m: m.cars_spawned_this_step,
             "Ambulances Spawned": lambda m: m.ambulances_spawned_this_step,
+            "Total Cars Historical": lambda m: m.total_cars_historical,
+            "Total Ambulances Historical": lambda m: m.total_ambulances_historical,
+            "Total Reached Ambulances Historical": lambda m: m.total_reached_ambulances_historical,
+            "Total Reached Cars Historical": lambda m: m.total_reached_cars_historical,
         }
         self.datacollector = DataCollector(model_reporters)
 
@@ -275,12 +285,14 @@ class CityModel(Model):
                 ambulance = Ambulance(self, corner)
                 self.ambulances.append(ambulance)
                 self.ambulances_spawned_this_step += 1
+                self.total_ambulances_historical += 1
                 ambulances_spawned += 1
             else:
                 # Spawn cars
                 car = CarAgent(self, corner)
                 self.cars.append(car)
                 self.cars_spawned_this_step += 1
+                self.total_cars_historical += 1
                 cars_spawned += 1
 
     def step(self):

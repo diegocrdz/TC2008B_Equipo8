@@ -69,11 +69,13 @@ class VehicleAgent(CellAgent):
             # Check for Destination (cars)
             if isinstance(agent, Destination):
                 self.model.cars_reached_destination += 1
+                self.model.total_reached_cars_historical += 1
                 self.remove()
                 return
             # Check for Hospital (ambulances)
             if isinstance(agent, Hospital):
                 self.model.ambulances_reached_hospital += 1
+                self.model.total_reached_ambulances_historical += 1
                 # Turn off siren light if ambulance has it
                 if hasattr(self, 'light'):
                     self.light = False
