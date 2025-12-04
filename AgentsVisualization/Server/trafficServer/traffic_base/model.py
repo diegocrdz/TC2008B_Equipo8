@@ -70,28 +70,6 @@ class CityModel(Model):
         }
         self.datacollector = DataCollector(model_reporters)
 
-        # Connection to external API for traffic data
-        url = "http://10.49.12.39:5000/api/"
-        endpoint = "validate_attempt"
-
-        data = {
-            "year" : 2025,
-            "classroom" : 302,
-            "name" : "Equipo 8",
-            "current_cars": model_reporters["Total Cars"](self),
-            "total_arrived": model_reporters["Cars Reached Destination"](self),
-            "attempt_number": 10
-        }
-
-        headers = {
-            "Content-Type": "application/json"
-        }
-
-        response = requests.post(url+endpoint, data=json.dumps(data), headers=headers)
-
-        print("Request " + "successful" if response.status_code == 200 else "failed", "Status code:", response.status_code)
-        print("Response:", response.json())
-
         # Load the map dictionary. The dictionary maps the characters in the map file to the corresponding agent.
         dataDictionary = json.load(open("city_files/mapDictionary.json"))
 
@@ -242,6 +220,7 @@ class CityModel(Model):
         self.detectIntersections()
         
         self.spawnVehicles()
+        
         self.running = True
     
     def detectIntersections(self):
@@ -342,3 +321,25 @@ class CityModel(Model):
 
         # Collect data
         self.datacollector.collect(self)
+
+        # Connection to external API for traffic data (after agents are created)
+        url = "http://10.49.12.39:5000/api/"
+        endpoint = "attempt"
+
+        data = {
+            "year" : 2025,
+            "classroom" : 301,
+            "name" : "Aquibas",
+            "current_cars": float(self.datacollector.get_model_vars_dataframe()["Total Cars"].iloc[-1]),
+            "total_arrived": float(self.datacollector.get_model_vars_dataframe()["Total Reached Cars Historical"].iloc[-1]),
+            "attempt_number": 0
+        }
+
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        response = requests.post(url+endpoint, data=json.dumps(data), headers=headers)
+
+        print("Request " + "successful" if response.status_code == 200 else "failed", "Status code:", response.status_code)
+        print("Response:", response.json())
