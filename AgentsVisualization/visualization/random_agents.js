@@ -80,9 +80,9 @@ const NUM_LIGHTS = 27; // Max number of lights to consider in the shader
 
 // Simulation parameters
 let simulationParams = {
-  vehicle_spawn_rate: 2,
+  vehicle_spawn_rate: 10,
   vehicles_per_step: 4,
-  ambulance_per_step: 1,
+  ambulance_per_step: 0,
   emergency_chance: 0.5,
 };
 
