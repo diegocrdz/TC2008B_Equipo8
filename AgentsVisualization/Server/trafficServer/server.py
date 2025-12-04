@@ -8,6 +8,7 @@ from mesa.visualization import (
     make_plot_component,
 )
 from mesa.visualization.components import AgentPortrayalStyle
+import solara
 
 
 def agent_portrayal(agent):
@@ -101,14 +102,6 @@ lineplot_component = make_plot_component(
     post_process=post_process_lines,
 )
 
-# Create crashes plot component to track crashes over time
-crashes_component = make_plot_component(
-    {
-        "Total Crashes": "tab:red",
-    },
-    post_process=post_process_lines,
-)
-
 # Create destinations plot component to track spawned cars and ambulances per step
 destinations_component = make_plot_component(
     {
@@ -134,10 +127,27 @@ space_component = make_space_component(
     post_process=post_process,
 )
 
+# Create custom text component for historical statistics
+# Documentation for Solara Markdown: https://solara.dev/documentation/components/output/markdown
+def StatsDisplay(model):
+    return solara.Markdown(f"""
+### Historical Statistics
+
+**Total Cars Spawned:** {model.total_cars_historical}
+
+**Total Ambulances Spawned:** {model.total_ambulances_historical}
+
+**Total Cars Reached:** {model.total_reached_cars_historical}
+
+**Total Ambulances Reached:** {model.total_reached_ambulances_historical}
+
+**Total Crashes:** {model.total_crashes}
+    """)
+
 # Create Solara visualization page
 page = SolaraViz(
     model,
-    components=[CommandConsole, space_component, lineplot_component, crashes_component, destinations_component, reached_component],
+    components=[CommandConsole, space_component, StatsDisplay, lineplot_component, destinations_component, reached_component],
     model_params=model_params,
     name="Random Model",
 )
