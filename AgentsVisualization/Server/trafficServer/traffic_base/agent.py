@@ -920,6 +920,10 @@ class CarAgent(VehicleAgent):
 
         self.lane_change_steps_since += 1
 
+        # Crash check
+        if self.crash():
+            return
+
         # Check if we reached destination
         self.checkDestination()
 

@@ -129,7 +129,7 @@ async function getAgents() {
                     newAgent['direction'] = agent.direction;
 
                     // Initialize the rotation using initial position
-                    const rotationY = getRotation(newAgent.posArray, newAgent.posArray);
+                    const rotationY = getRotation(newAgent.posArray, newAgent.posArray, newAgent.direction);
                     newAgent['oldRotY'] = rotationY;
                     newAgent['targetRotY'] = rotationY;
                     agents.push(newAgent);
@@ -149,7 +149,7 @@ async function getAgents() {
                         // Update the direction and rotation
                         current_agent.oldRotY = current_agent.targetRotY;
                         current_agent.direction = agent.direction;
-                        const rotationY = getRotation(current_agent.oldPosArray, current_agent.posArray);
+                        const rotationY = getRotation(current_agent.oldPosArray, current_agent.posArray, current_agent.direction);
 
                         // Only update target rotation if there was actual movement
                         if (rotationY !== null) {
@@ -166,7 +166,7 @@ async function getAgents() {
                         newAgent['direction'] = agent.direction;
 
                         // Initialize the rotation
-                        const rotationY = getRotation(newAgent.posArray, newAgent.posArray);
+                        const rotationY = getRotation(newAgent.posArray, newAgent.posArray, newAgent.direction);
                         newAgent['oldRotY'] = rotationY;
                         newAgent['targetRotY'] = rotationY;
                         agents.push(newAgent);
@@ -232,7 +232,7 @@ async function getAmbulances() {
                     newAgent['direction'] = agent.direction;
 
                     // Store the rotation
-                    const rotationY = getRotation(newAgent.posArray, newAgent.posArray);
+                    const rotationY = getRotation(newAgent.posArray, newAgent.posArray, newAgent.direction);
                     newAgent['oldRotY'] = rotationY;
                     newAgent['targetRotY'] = rotationY;
 
@@ -262,7 +262,7 @@ async function getAmbulances() {
                         // Update the direction and rotation
                         current_agent.oldRotY = current_agent.targetRotY;
                         current_agent.direction = agent.direction;
-                        const rotationY = getRotation(current_agent.oldPosArray, current_agent.posArray);
+                        const rotationY = getRotation(current_agent.oldPosArray, current_agent.posArray, current_agent.direction);
 
                         // Only update target rotation if there was actual movement
                         if (rotationY !== null) {
@@ -287,7 +287,7 @@ async function getAmbulances() {
                         newAgent['direction'] = agent.direction;
 
                         // Store the rotation
-                        const rotationY = getRotation(newAgent.posArray, newAgent.posArray);
+                        const rotationY = getRotation(newAgent.posArray, newAgent.posArray, newAgent.direction);
                         newAgent['oldRotY'] = rotationY;
                         newAgent['targetRotY'] = rotationY;
 

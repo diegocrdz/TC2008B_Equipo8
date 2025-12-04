@@ -96,7 +96,7 @@ class CityModel(Model):
             self.height = len(lines)
 
             self.grid = OrthogonalMooreGrid(
-                [self.width, self.height], capacity=100, torus=False
+                [self.width, self.height], capacity=10, torus=False
             )
 
             # Goes through each character in the map file and creates the corresponding agent.
@@ -249,39 +249,44 @@ class CityModel(Model):
         cars_spawned = 0
         ambulances_spawned = 0
         corners_full = 0
-        corners_to_use = self.corners.copy()
+        
+        # Shuffle corners to randomize spawn locations
+        shuffled_corners = self.random.sample(self.corners, len(self.corners))
 
-        # Spawn vehicles at each corner
-        for _ in range(self.vehicles_per_step):
+        # Spawn vehicles at available corners
+        for corner in shuffled_corners:
+            # Stop if we've spawned enough vehicles for this step
+            total_spawned = ambulances_spawned + cars_spawned
+            if total_spawned >= self.vehicles_per_step:
+                break
 
-            # Get random corner
-            corner = self.random.choice(corners_to_use)
-            corners_to_use.remove(corner)
-
-            # Check if that corner is full
+            # Check if that corner already has a vehicle
             has_vehicle = any(
                 isinstance(agent, (CarAgent, Ambulance))
                 for agent in corner.agents
             )
+
+            # If there is already a vehicle, count it and skip this corner
             if has_vehicle:
                 corners_full += 1
-                if corners_full >= len(self.corners):
-                    self.running
-                    return
                 continue
 
-            # Spawn ambulances
+            # Spawn ambulances first (they have priority)
             if ambulances_spawned < self.ambulance_per_step:
                 ambulance = Ambulance(self, corner)
                 self.ambulances.append(ambulance)
                 self.ambulances_spawned_this_step += 1
                 ambulances_spawned += 1
-            else:
-                # Spawn cars
+            # Spawn cars only if ambulance quota is met
+            elif cars_spawned < (self.vehicles_per_step - self.ambulance_per_step):
                 car = CarAgent(self, corner)
                 self.cars.append(car)
                 self.cars_spawned_this_step += 1
                 cars_spawned += 1
+        
+        # Stop the model if all corners are full (no vehicles can be spawned)
+        if corners_full >= len(self.corners):
+            self.running = False
 
     def step(self):
         """Advance the model by one step."""
