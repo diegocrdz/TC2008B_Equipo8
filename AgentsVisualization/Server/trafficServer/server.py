@@ -57,7 +57,7 @@ model_params = {
         "Vehicles per step", 4, 0, 4, 1,
     ),
     "ambulance_per_step": Slider(
-        "Ambulances per step", 0, 0, 4, 1,
+        "Ambulances per step", 1, 0, 4, 1,
     ),
     "emergency_chance": Slider(
         "Emergency Chance (%)", 0.5, 0, 1, 0.1,
@@ -120,6 +120,15 @@ reached_component = make_plot_component(
     post_process=post_process_lines_windowed,
 )
 
+# Create a destination component with total car destination vs cars spawned
+cars_destination_component = make_plot_component(
+    {
+        "Total Cars": "tab:blue",
+        "Total Reached Cars Historical": "tab:green",
+    },
+    post_process=post_process_lines,
+)
+
 # Create space component for visualizing the grid
 space_component = make_space_component(
     agent_portrayal,
@@ -147,7 +156,15 @@ def StatsDisplay(model):
 # Create Solara visualization page
 page = SolaraViz(
     model,
-    components=[CommandConsole, space_component, StatsDisplay, lineplot_component, destinations_component, reached_component],
+    components=[
+        CommandConsole, 
+        space_component,
+        StatsDisplay,
+        lineplot_component,
+        destinations_component,
+        reached_component,
+        cars_destination_component
+    ],
     model_params=model_params,
     name="Random Model",
 )
