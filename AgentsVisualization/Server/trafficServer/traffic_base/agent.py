@@ -31,12 +31,14 @@ class VehicleAgent(CellAgent):
 
         # Tolerance parameters for waiting
         self.tolerance_timer = 0  # Timer for tolerance to waiting
-        self.max_tolerance = 5  # Max tolerance before recalculating path
+        self.max_tolerance = 3  # Max tolerance before recalculating path (reduced for faster rerouting)
         self.path_recalculated = False  # Flag to indicate if path was recalculated
+        self.consecutive_waits = 0  # Count consecutive waits to detect congestion
 
         # Lane noise scale for changing lane costs in A*
         # This adds variability to lane selection
-        self.lane_noice_scale = 0.3
+        # Higher values = more route diversity
+        self.lane_noice_scale = random.uniform(1.0, 2.5)
 
         # Initialize lastDirection from the road in the current cell
         self.lastDirection = None
@@ -167,9 +169,10 @@ class VehicleAgent(CellAgent):
         
         def getValidNeighbors(current_coord):
             """Get valid neighboring respecting road directions."""
-            # Arbitrary high cost for invalid neighbors
-            NEIGHBOR_C = 5
-            INTERSECTION_C = 2
+            # INCREASED costs to strongly discourage congested routes
+            VEHICLE_BASE_COST = 15  # High base cost per vehicle (increased from 5)
+            INTERSECTION_C = 1  # Small cost for intersections
+            TRAFFIC_LIGHT_COST = 3  # Cost for traffic lights
             valid_neighbors = []
             neighbor_extra_cost = {}
 
@@ -218,13 +221,24 @@ class VehicleAgent(CellAgent):
                 if neighbor_coord in self.model.obstacle_cells:
                     continue
 
-                # Check any vehicles
-                has_vehicle = any(
-                    agent for agent in self.model.grid[neighbor_coord].agents
+                # Count vehicles in neighbor cell - AGGRESSIVE PENALTY
+                neighbor_cell = self.model.grid[neighbor_coord]
+                vehicle_count = sum(
+                    1 for agent in neighbor_cell.agents
                     if isinstance(agent, (CarAgent, Ambulance))
                 )
-                if has_vehicle:
-                    extra_cost += NEIGHBOR_C
+                
+                if vehicle_count > 0:
+                    # Exponential penalty: more vehicles = MUCH higher cost
+                    # 1 vehicle = 15, 2 vehicles = 45, 3 vehicles = 90, etc.
+                    extra_cost += VEHICLE_BASE_COST * (vehicle_count ** 1.5)
+                
+                # Check for traffic lights
+                has_traffic_light = any(
+                    isinstance(agent, Traffic_Light) for agent in neighbor_cell.agents
+                )
+                if has_traffic_light:
+                    extra_cost += TRAFFIC_LIGHT_COST
                 
                 # Check for intersections
                 if neighbor_coord in self.model.intersection_cells:
@@ -360,21 +374,59 @@ class VehicleAgent(CellAgent):
                 self.path = self.calculatePath(start, goal, find_closest=True)
                 self.path_index = 0
     
+    def detectCongestionAhead(self, look_ahead=5):
+        """Check if there's congestion in the next few cells of the path."""
+        if not self.path or len(self.path) < 2:
+            return False
+        
+        # Check the next 'look_ahead' cells in path
+        cells_to_check = min(look_ahead, len(self.path))
+        vehicles_found = 0
+        
+        for i in range(cells_to_check):
+            coord = self.path[i]
+            cell = self.model.grid[coord]
+            
+            # Count vehicles in this cell
+            vehicle_count = sum(
+                1 for agent in cell.agents
+                if isinstance(agent, (CarAgent, Ambulance))
+            )
+            vehicles_found += vehicle_count
+        
+        # If we find 3+ vehicles in the next cells, it's congested
+        return vehicles_found >= 3
+    
     def reduceWaitingTimer(self, agent_type='car'):
-        """Reduces the waiting tolerance timer if greater than zero."""
+        """Reduces the waiting tolerance timer and recalculates path if congested."""
         if self.tolerance_timer >= 0:
             self.tolerance_timer += 1
-        if self.tolerance_timer >= self.max_tolerance:
-            #Recalculate A* path if timer expired - find closest node to destination
+        
+        # Check for congestion ahead even before timer expires
+        if self.tolerance_timer >= 2 and self.detectCongestionAhead():
             self.tolerance_timer = 0
-            self.path = []
+            self.consecutive_waits = 0
+            
+            if self.destination:
+                start = self.cell.coordinate
+                goal = self.destination.cell.coordinate
+                # Increase noise to find more alternative routes
+                old_noise = self.lane_noice_scale
+                self.lane_noice_scale = random.uniform(2.0, 4.0)
+                self.path = self.calculatePath(start, goal, find_closest=True)
+                self.lane_noice_scale = old_noise
+                self.path_index = 0
+            return
+        
+        if self.tolerance_timer >= self.max_tolerance:
+            # Recalculate A* path if timer expired
+            self.tolerance_timer = 0
+            self.consecutive_waits = 0
 
             if self.destination:
                 start = self.cell.coordinate
                 goal = self.destination.cell.coordinate
-                # Use find_closest=True to find route to closest accessible 
-                # node instead of exact destination
-                # This helps distribute traffic across alternative routes
+                # Use find_closest=True to find route to closest accessible node
                 self.path = self.calculatePath(start, goal, find_closest=True)
                 self.path_index = 0
 
@@ -393,9 +445,10 @@ class CarAgent(VehicleAgent):
         self.moved_for_ambulance = False  # Track if already moved to let ambulance pass
         
         # Parameters for lane changing
-        self.lane_change_cooldown = 4 # Cooldown steps between lane changes
-        self.lane_change_steps_since = 999 # Steps since last lane change, starts high to allow immediate change
-        self.preferred_lane_side = self.random.choice(["left", "right"]) # Assign random lane preference
+        self.lane_change_cooldown = 2  # Reduced cooldown for more frequent lane changes
+        self.lane_change_steps_since = 999  # Steps since last lane change, starts high to allow immediate change
+        self.preferred_lane_side = self.random.choice(["left", "right"])  # Assign random lane preference
+        self.aggressive_reroute = random.random() < 0.5  # 50% of cars are more aggressive with rerouting
 
     def getNextReturnStep(self):
         """Get the next step using A* path, checking traffic lights and cars."""
@@ -953,15 +1006,19 @@ class CarAgent(VehicleAgent):
                 self.path.pop(0)  # Remove the first step as we are moving there
                 self.move(next_cell)
                 self.state = "idle"
+                self.consecutive_waits = 0  # Reset wait counter when moving
         
         elif self.state == "waitingCar":
+            # Count consecutive waits for aggressive rerouting
+            self.consecutive_waits += 1
+            
             # Check for ambulance first
             next_cell = self.checkAmbulance()
 
             if next_cell is None:
                 return
 
-            # Try lane change
+            # Try lane change more aggressively if stuck
             lane_cell = self.tryLaneChange()
             if lane_cell is not None:
                 self.move(lane_cell)
@@ -975,11 +1032,16 @@ class CarAgent(VehicleAgent):
                 
                 self.state = "idle"
                 self.tolerance_timer = 0  # Reset tolerance timer after lane change
+                self.consecutive_waits = 0  # Reset wait counter
                 self.path_recalculated = False
                 return
             
-            # Update waiting timer
-            self.reduceWaitingTimer('car')
+            # If aggressive and stuck for 2+ steps, force reroute
+            if self.aggressive_reroute and self.consecutive_waits >= 2:
+                self.reduceWaitingTimer('car')
+            else:
+                # Update waiting timer normally
+                self.reduceWaitingTimer('car')
 
             # Check again if car moved
             next_cell = self.getNextReturnStep()
@@ -988,6 +1050,7 @@ class CarAgent(VehicleAgent):
                 self.path.pop(0)
                 self.move(next_cell)
                 self.state = "idle"
+                self.consecutive_waits = 0  # Reset when moving
         
         elif self.state == "waitingTL":
             # Check for ambulance first
