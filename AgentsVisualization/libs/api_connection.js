@@ -1,8 +1,11 @@
 /*
  * Functions to connect to an external API to get the coordinates of agents
  *
- * Gilberto Echeverria
- * 2025-11-08
+ * Diego Córdova Rodríguez
+ * Lorena Estefanía Chewtat Torres
+ * Aquiba Yudah Benarroch Bittán
+ * 
+ * 2025-11-29
  */
 
 'use strict';
@@ -26,6 +29,13 @@ const ambulances = [];
 // Global scene reference for removing objects
 let globalScene = null;
 
+// Setup functions for adding new agents
+import {
+    setupNewCarAgent,
+    setupNewAmbulanceAgent,
+    getSimulationParams
+} from '../visualization/random_agents.js';
+
 // Define the data object
 const initData = {
     NAgents: 20,
@@ -47,11 +57,23 @@ function setScene(scene) {
  */
 async function initAgentsModel() {
     try {
+        // Get simulation parameters from the UI
+        const simParams = getSimulationParams();
+        
+        // Prepare the initialization data with simulation parameters
+        const dataToSend = {
+            ...initData,
+            vehicle_spawn_rate: simParams.vehicle_spawn_rate,
+            vehicles_per_step: simParams.vehicles_per_step,
+            ambulance_per_step: simParams.ambulance_per_step,
+            emergency_chance: simParams.emergency_chance,
+        };
+        
         // Send a POST request to the agent server to initialize the model
         let response = await fetch(agent_server_uri + "init", {
             method: 'POST',
             headers: { 'Content-Type':'application/json' },
-            body: JSON.stringify(initData)
+            body: JSON.stringify(dataToSend)
         });
 
         // Check if the response was successful
@@ -99,12 +121,15 @@ async function getAgents() {
                 // Create new agents and add them to the agents array
                 for (const agent of result.positions) {
                     const newAgent = new Object3D(agent.id, [agent.x, agent.y, agent.z]);
+
                     // Store the initial position
                     newAgent['oldPosArray'] = newAgent.posArray;
+
                     // Store the direction
                     newAgent['direction'] = agent.direction;
+
                     // Initialize the rotation using initial position
-                    const rotationY = getRotation(newAgent.posArray, newAgent.posArray);
+                    const rotationY = getRotation(newAgent.posArray, newAgent.posArray, newAgent.direction);
                     newAgent['oldRotY'] = rotationY;
                     newAgent['targetRotY'] = rotationY;
                     agents.push(newAgent);
@@ -120,10 +145,12 @@ async function getAgents() {
                         // Update the agent's position
                         current_agent.oldPosArray = current_agent.posArray;
                         current_agent.position = {x: agent.x, y: agent.y, z: agent.z};
+
                         // Update the direction and rotation
                         current_agent.oldRotY = current_agent.targetRotY;
                         current_agent.direction = agent.direction;
-                        const rotationY = getRotation(current_agent.oldPosArray, current_agent.posArray);
+                        const rotationY = getRotation(current_agent.oldPosArray, current_agent.posArray, current_agent.direction);
+
                         // Only update target rotation if there was actual movement
                         if (rotationY !== null) {
                             current_agent.targetRotY = rotationY;
@@ -131,15 +158,21 @@ async function getAgents() {
                     } else {
                         // If the agent does not exist, create it
                         const newAgent = new Object3D(agent.id, [agent.x, agent.y, agent.z]);
+
                         // Store the initial position
                         newAgent['oldPosArray'] = newAgent.posArray;
+
                         // Store the direction
                         newAgent['direction'] = agent.direction;
+
                         // Initialize the rotation
-                        const rotationY = getRotation(newAgent.posArray, newAgent.posArray);
+                        const rotationY = getRotation(newAgent.posArray, newAgent.posArray, newAgent.direction);
                         newAgent['oldRotY'] = rotationY;
                         newAgent['targetRotY'] = rotationY;
                         agents.push(newAgent);
+                        
+                        // Setup the new agent in the scene
+                        setupNewCarAgent(newAgent);
                     }
                 }
             }
@@ -169,11 +202,19 @@ async function getAmbulances() {
                 for (const removedId of result.removed) {
                     const index = ambulances.findIndex((ambulance) => ambulance.id == removedId);
                     if (index !== -1) {
-                        ambulances.splice(index, 1);
-                        // Also remove from scene if available
+                        const ambulance = ambulances[index];
+                        ambulance.light = false; // Turn off siren light
+                        // Remove siren light from scene
+                        if (ambulance.sirenLight && globalScene) {
+                            globalScene.removeLight(ambulance.sirenLight);
+                        }
+                        ambulance.sirenLight = null;
+                        // Remove ambulance from scene
                         if (globalScene) {
                             globalScene.removeObject(removedId);
                         }
+                        // Remove from ambulances array
+                        ambulances.splice(index, 1);
                     }
                 }
             }
@@ -183,47 +224,85 @@ async function getAmbulances() {
                 // Create new ambulances and add them to the ambulances array
                 for (const agent of result.positions) {
                     const newAgent = new Object3D(agent.id, [agent.x, agent.y, agent.z]);
+
                     // Store the initial position
                     newAgent['oldPosArray'] = newAgent.posArray;
+
                     // Store the direction
                     newAgent['direction'] = agent.direction;
+
                     // Store the rotation
-                    const rotationY = getRotation(newAgent.posArray, newAgent.posArray);
+                    const rotationY = getRotation(newAgent.posArray, newAgent.posArray, newAgent.direction);
                     newAgent['oldRotY'] = rotationY;
                     newAgent['targetRotY'] = rotationY;
+
+                    // Store the siren light state
+                    newAgent['light'] = agent.light;
+                    newAgent['light_state'] = agent.light_state;
+
+                    // Store emergency state
+                    newAgent['has_emergency'] = agent.has_emergency;
+
+                    // Add to ambulances array
                     ambulances.push(newAgent);
                 }
 
             } else {
                 // Update the positions of existing ambulances
                 for (const agent of result.positions) {
-                    const current_ambulance = ambulances.find((object3d) => object3d.id == agent.id);
+
+                    const current_agent = ambulances.find((object3d) => object3d.id == agent.id);
 
                     // Check if the ambulance exists in the ambulances array
-                    if(current_ambulance != undefined){
+                    if(current_agent != undefined){
                         // Update the ambulance's position
-                        current_ambulance.oldPosArray = current_ambulance.posArray;
-                        current_ambulance.position = {x: agent.x, y: agent.y, z: agent.z};
+                        current_agent.oldPosArray = current_agent.posArray;
+                        current_agent.position = {x: agent.x, y: agent.y, z: agent.z};
+
                         // Update the direction and rotation
-                        current_ambulance.oldRotY = current_ambulance.targetRotY;
-                        current_ambulance.direction = agent.direction;
-                        const rotationY = getRotation(current_ambulance.oldPosArray, current_ambulance.posArray);
+                        current_agent.oldRotY = current_agent.targetRotY;
+                        current_agent.direction = agent.direction;
+                        const rotationY = getRotation(current_agent.oldPosArray, current_agent.posArray, current_agent.direction);
+
                         // Only update target rotation if there was actual movement
                         if (rotationY !== null) {
-                            current_ambulance.targetRotY = rotationY;
+                            current_agent.targetRotY = rotationY;
                         }
+
+                        // Update siren light state
+                        current_agent.light = agent.light;
+                        current_agent.light_state = agent.light_state;
+
+                        // Update emergency state
+                        current_agent.has_emergency = agent.has_emergency;
+
                     } else {
                         // If the ambulance does not exist, create it
                         const newAgent = new Object3D(agent.id, [agent.x, agent.y, agent.z]);
+
                         // Store the initial position
                         newAgent['oldPosArray'] = newAgent.posArray;
+
                         // Store the direction
                         newAgent['direction'] = agent.direction;
+
                         // Store the rotation
-                        const rotationY = getRotation(newAgent.posArray, newAgent.posArray);
+                        const rotationY = getRotation(newAgent.posArray, newAgent.posArray, newAgent.direction);
                         newAgent['oldRotY'] = rotationY;
                         newAgent['targetRotY'] = rotationY;
+
+                        // Store the siren light state
+                        newAgent['light'] = agent.light;
+                        newAgent['light_state'] = agent.light_state;
+
+                        // Store emergency state
+                        newAgent['has_emergency'] = agent.has_emergency;
+
+                        // Add to ambulances array
                         ambulances.push(newAgent);
+
+                        // Setup the new ambulance in the scene
+                        setupNewAmbulanceAgent(newAgent);
                     }
                 }
             }
@@ -279,43 +358,12 @@ async function getTrafficLights() {
                 // Create new agents and add them to the agents array
                 for (const tl of result.positions) {
                     const newTL = new TrafficLight(tl.id, [tl.x, tl.y, tl.z]);
+
+                    // Set state and direction
                     newTL.state = tl.state;
                     newTL.direction = tl.direction;
 
-                    // Offset initial position to displace traffic lights
-                    let offsetX = 0;
-                    let offsetZ = 0;
-
-                    // Apply offset based on direction to displace traffic lights
-                    switch (newTL.direction) {
-                        case "Right":
-                            offsetZ = 0.5;
-                            break;
-                        case "Left":
-                            offsetZ = 0.5;
-                            break;
-                        case "Up":
-                            offsetX -= 0.5;
-                            break;
-                        case "Down":
-                            offsetX -= 0.5;
-                            break;
-                    }
-
-                    // Update offset position
-                    newTL.offsetX = offsetX;
-                    newTL.offsetZ = offsetZ;
-
-                    // Apply offset to position
-                    newTL.position.x += newTL.offsetX;
-                    newTL.position.z += newTL.offsetZ;
-
-                    // Set initial color based on state
-                    if (tl.state == true) {
-                        newTL.color = [0.0, 1.0, 0.0, 1.0];
-                    } else {
-                        newTL.color = [1.0, 0.0, 0.0, 1.0];
-                    }
+                    // Add to array
                     trafficLights.push(newTL);
                 }
 
@@ -326,48 +374,9 @@ async function getTrafficLights() {
 
                     // Check if the agent exists in the trafficLights array
                     if(current_tl != undefined){
-                        // Update the agent's position
-                        current_tl.oldPosArray = current_tl.posArray;
-                        current_tl.position = {x: tl.x, y: tl.y, z: tl.z};
-
-                        // Retrieve stored offsets
-                        const offsetX = current_tl.offsetX || 0;
-                        const offsetZ = current_tl.offsetZ || 0;
-
-                        // Apply offset
-                        current_tl.position = {
-                            x: tl.x + offsetX,
-                            y: tl.y,
-                            z: tl.z + offsetZ
-                        };
-
                         // Update state and direction
                         current_tl.state = tl.state;
                         current_tl.direction = tl.direction;
-
-                        // Change color based on state
-                        if (tl.state == true) {
-                            current_tl.color = [0.0, 1.0, 0.0, 1.0];
-                        } else {
-                            current_tl.color = [1.0, 0.0, 0.0, 1.0];
-                        }
-                        
-                        // Update light based on state
-                        if (current_tl.light) {
-                            const pos = current_tl.position;
-                            const lightHeight = pos.y + 5;
-
-                            // Update light position
-                            current_tl.light.position = [pos.x, lightHeight, pos.z];
-
-                            // Update light color
-                            const lightColor = tl.state
-                                ? [0.0, 1.0, 0.0, 1.0]
-                                : [1.0, 0.0, 0.0, 1.0];
-                            
-                            current_tl.light.diffuse = lightColor;
-                            current_tl.light.specular = lightColor;
-                        }
                     }
                 }
             }
@@ -419,7 +428,6 @@ async function getSidewalks() {
             // Create new sidewalks and add them to the sidewalks array
             for (const sidewalk of result.positions) {
                 const newSidewalk = new Object3D(sidewalk.id, [sidewalk.x, sidewalk.y, sidewalk.z]);
-                newSidewalk.color = [0.8, 0.8, 1.0, 1.0];
                 sidewalks.push(newSidewalk);
             }
         }
@@ -446,7 +454,6 @@ async function getHospitals() {
             // Create new hospitals and add them to the hospitals array
             for (const hospital of result.positions) {
                 const newHospital = new Object3D(hospital.id, [hospital.x, hospital.y, hospital.z]);
-                newHospital.color = [1.0, 0.8, 0.8, 1.0];
                 hospitals.push(newHospital);
             }
         }
@@ -473,7 +480,6 @@ async function getDestinations() {
             // Create new destinations and add them to the destinations array
             for (const destination of result.positions) {
                 const newDestination = new Object3D(destination.id, [destination.x, destination.y, destination.z]);
-                newDestination.color = [0.8, 1.0, 0.8, 1.0];
                 destinations.push(newDestination);
             }
         }
@@ -498,8 +504,6 @@ async function update() {
             await getAgents();
             await getAmbulances();
             await getTrafficLights();
-            // Log a message indicating that the agents have been updated
-            //console.log("Updated agents");
         }
 
     } catch (error) {

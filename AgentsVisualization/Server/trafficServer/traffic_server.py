@@ -5,7 +5,7 @@ Diego Córdova Rodríguez
 Lorena Estefanía Chewtat Torres
 Aquiba Yudah Benarroch Bittán
 
-2025-11-27
+2025-11-29
 """
 
 from flask import Flask, request, jsonify
@@ -38,19 +38,32 @@ def initModel():
             number_agents = int(request.json.get('NAgents'))
             width = int(request.json.get('width'))
             height = int(request.json.get('height'))
+            
+            # Get simulation parameters with defaults
+            vehicle_spawn_rate = int(request.json.get('vehicle_spawn_rate', 15))
+            vehicles_per_step = int(request.json.get('vehicles_per_step', 4))
+            ambulance_per_step = int(request.json.get('ambulance_per_step', 1))
+            emergency_chance = float(request.json.get('emergency_chance', 0.5))
+            
             currentStep = 0
 
         except Exception as e:
             print(e)
             return jsonify({"message": "Error initializing the model"}), 500
 
-    print(f"Model parameters:{number_agents, width, height}")
+    print(f"Model parameters: agents={number_agents}, size={width}x{height}, spawn_rate={vehicle_spawn_rate}, vehicles_per_step={vehicles_per_step}, ambulance_per_step={ambulance_per_step}, emergency_chance={emergency_chance}")
 
     # Create the model using the parameters sent by the application
-    randomModel = CityModel(number_agents)
+    randomModel = CityModel(
+        number_agents,
+        vehicle_spawn_rate=vehicle_spawn_rate,
+        vehicles_per_step=vehicles_per_step,
+        ambulance_per_step=ambulance_per_step,
+        emergency_chance=emergency_chance
+    )
 
     # Return a message to saying that the model was created successfully
-    return jsonify({"message": f"Parameters recieved, model initiated.\nSize: {width}x{height}"})
+    return jsonify({"message": f"Parameters recieved, model initiated.\nSize: {width}x{height}\nSpawn Rate: {vehicle_spawn_rate}, Vehicles/Step: {vehicles_per_step}, Ambulances/Step: {ambulance_per_step}, Emergency Chance: {emergency_chance}"})
 
 # This route will be used to get the positions of the agents
 @app.route('/getAgents', methods=['GET'])
@@ -125,7 +138,13 @@ def getAmbulances():
                     "x": coordinate[0],
                     "y": 1,
                     "z": coordinate[1],
-                    "direction": next((road.direction for road in randomModel.grid[coordinate].agents if isinstance(road, Road)), None),
+                    "direction": next((
+                        road.direction for road in randomModel.grid[coordinate].agents
+                        if isinstance(road, Road)), None
+                    ),
+                    "light": a.light,
+                    "light_state": a.light_state,
+                    "has_emergency": a.has_emergency,
                 }
                 for (coordinate, a) in ambulances
             ]
@@ -139,7 +158,10 @@ def getAmbulances():
             # Update tracking
             previous_ambulance_ids = current_ambulance_ids
 
-            return jsonify({'positions': ambulancePositions, 'removed': removed_ambulance_ids})
+            return jsonify({
+                'positions': ambulancePositions,
+                'removed': removed_ambulance_ids,
+            })
         except Exception as e:
             print(e)
             return jsonify({"message": "Error with ambulance positions"}), 500
