@@ -14,6 +14,7 @@ from mesa.discrete_space import OrthogonalMooreGrid
 from mesa.datacollection import DataCollector
 from .agent import *
 import json
+import requests
 
 class CityModel(Model):
     """
@@ -68,6 +69,28 @@ class CityModel(Model):
             "Total Reached Cars Historical": lambda m: m.total_reached_cars_historical,
         }
         self.datacollector = DataCollector(model_reporters)
+
+        # Connection to external API for traffic data
+        url = "http://10.49.12.39:5000/api/"
+        endpoint = "validate_attempt"
+
+        data = {
+            "year" : 2025,
+            "classroom" : 302,
+            "name" : "Equipo 8",
+            "current_cars": model_reporters["Total Cars"](self),
+            "total_arrived": model_reporters["Cars Reached Destination"](self),
+            "attempt_number": 10
+        }
+
+        headers = {
+            "Content-Type": "application/json"
+        }
+
+        response = requests.post(url+endpoint, data=json.dumps(data), headers=headers)
+
+        print("Request " + "successful" if response.status_code == 200 else "failed", "Status code:", response.status_code)
+        print("Response:", response.json())
 
         # Load the map dictionary. The dictionary maps the characters in the map file to the corresponding agent.
         dataDictionary = json.load(open("city_files/mapDictionary.json"))

@@ -57,7 +57,7 @@ model_params = {
         "Vehicles per step", 4, 0, 4, 1,
     ),
     "ambulance_per_step": Slider(
-        "Ambulances per step", 1, 0, 4, 1,
+        "Ambulances per step", 0, 0, 4, 1,
     ),
     "emergency_chance": Slider(
         "Emergency Chance (%)", 0.5, 0, 1, 0.1,
