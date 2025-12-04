@@ -72,30 +72,24 @@ export function createLight(x, y, z, offsetX, offsetY, offsetZ, color, intensity
 }
 
 // Function that gets the direction of a car and returns the correct rotation
-export function getRotation(oldPos, newPos) {
+// If roadDirection is provided, uses it when there's no movement
+export function getRotation(oldPos, newPos, roadDirection = null) {
   const dx = newPos[0] - oldPos[0];
   const dz = newPos[2] - oldPos[2];
 
-  // If no movement, return null to keep previous rotation
+  // If no movement, rotate to the direction of the street if available
   if (Math.abs(dx) == 0 && Math.abs(dz) == 0) {
+    if (roadDirection) {
+      // Extract only the Y rotation
+      const rotObj = getRotationByDirection(roadDirection);
+      return rotObj.y;
+    }
     return null;
   }
 
-  // If diagonal movement (both dx and dz are non-zero)
+  // If diagonal movement (both dx and dz are non-zero), keep previous rotation
   if (Math.abs(dx) > 0 && Math.abs(dz) > 0) {
-    // up-right
-    if (dx > 0 && dz > 0) {
-      return Math.PI / 4; // 45 degrees
-    } else if (dx < 0 && dz > 0) {
-      // up-left
-      return (3 * Math.PI) / 4; // 135 degrees
-    } else if (dx < 0 && dz < 0) {
-      // down-left
-      return (-3 * Math.PI) / 4; // 225 degrees
-    } else if (dx > 0 && dz < 0) {
-      // down-right
-      return -Math.PI / 4; // 315 degrees
-    }
+    return null;
   }
 
   let direction = "";

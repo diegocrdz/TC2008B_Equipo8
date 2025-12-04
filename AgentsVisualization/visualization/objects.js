@@ -162,7 +162,7 @@ let redTexture;
 
 // Function to initialize all textures with gl context
 export function initTextures(gl) {
-  skyboxTexture = createTexture(gl, '../assets/textures/Skyboxes/night_1.png');
+  skyboxTexture = createTexture(gl, '../assets/textures/Skyboxes/space.jpg');
   sidewalkTexture = createTexture(gl, '../assets/textures/Sidewalks/sidewalk.png');
   simpleBuildingTexture = createTexture(gl, '../assets/textures/Buildings/simple_buildings.png');
   simpleBuildingTextureB = createTexture(gl, '../assets/textures/Buildings/simple_buildings_b.png');
