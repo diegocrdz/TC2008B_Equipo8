@@ -20,7 +20,16 @@
 
 ---
 
-### :camera_flash: Visualización y Características
+## :information_source: Índice
+
+- [Visualización y Características](#camera_flash-visualización-y-características)
+- [Descripción](#memo-descripción)
+- [Instalación y Configuración](#rocket-instalación-y-configuración)
+- [Ejecución de la Simulación](#computer-ejecución-de-la-simulación)
+
+---
+
+## :camera_flash: Visualización y Características
 
 **Visualización 3D** con WebGL para renderizado en tiempo real
 ![Simulacion 1](./img/sim_1.png)
