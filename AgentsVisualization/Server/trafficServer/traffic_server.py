@@ -77,14 +77,18 @@ def getAgents():
         # The y coordinate is set to 1, since the agents are in a 3D world. The z coordinate corresponds to the row (y coordinate) of the grid in mesa.
         try:
             agentCells = randomModel.grid.all_cells.select(
-                lambda cell: any(isinstance(obj, CarAgent) for obj in cell.agents)
+                lambda cell: any(
+                    isinstance(obj, CarAgent) 
+                    and not isinstance(obj, Ambulance) 
+                    for obj in cell.agents
+                )
             ).cells
 
             agents = [
                 (cell.coordinate, agent)
                 for cell in agentCells
                 for agent in cell.agents
-                if isinstance(agent, CarAgent)
+                if isinstance(agent, CarAgent) and not isinstance(agent, Ambulance)
             ]
 
             agentPositions = [
