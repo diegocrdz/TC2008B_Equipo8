@@ -1,11 +1,11 @@
 /*
  * Functions to connect to an external API to get the coordinates of agents
  *
- * Diego Córdova Rodríguez
- * Lorena Estefanía Chewtat Torres
- * Aquiba Yudah Benarroch Bittán
- * 
- * 2025-11-29
+ * Aquiba Yudah Benarroch Bittan, A01783710
+ * Diego Córdova Rodríguez, A01781166
+ * Lorena Estefanía Chewtat Torres, A01785378
+ *
+ * 2025-12-04
  */
 
 'use strict';

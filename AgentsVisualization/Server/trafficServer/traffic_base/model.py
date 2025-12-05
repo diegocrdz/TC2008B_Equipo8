@@ -2,11 +2,11 @@
 Module that contains the CityModel class.
 This module is part of the traffic simulation model using the Mesa framework.
 
-Diego Córdova Rodríguez
-Lorena Estefanía Chewtat Torres
-Aquiba Yudah Benarroch Bittán
+Aquiba Yudah Benarroch Bittan, A01783710 
+Diego Córdova Rodríguez, A01781166 
+Lorena Estefanía Chewtat Torres, A01785378
 
-2025-11-27
+2025-12-04
 """
 
 from mesa import Model

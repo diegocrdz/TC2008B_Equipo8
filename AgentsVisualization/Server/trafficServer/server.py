@@ -1,3 +1,13 @@
+"""
+Solara server for the traffic simulation model.
+
+Aquiba Yudah Benarroch Bittan, A01783710 
+Diego Córdova Rodríguez, A01781166 
+Lorena Estefanía Chewtat Torres, A01785378
+
+2025-12-04
+"""
+
 from traffic_base.agent import *
 from traffic_base.model import CityModel
 from mesa.visualization import (

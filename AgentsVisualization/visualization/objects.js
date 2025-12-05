@@ -1,11 +1,11 @@
 /*
  * Dictionaries to store the loaded 3D models and their materials
  *
- * Diego Córdova Rodríguez
- * Lorena Estefanía Chewtat Torres
- * Aquiba Yudah Benarroch Bittán
+ * Aquiba Yudah Benarroch Bittan, A01783710 
+ * Diego Córdova Rodríguez, A01781166 
+ * Lorena Estefanía Chewtat Torres, A01785378
  * 
- * 2025-11-27
+ * 2025-12-04
  */
 
 'use strict';

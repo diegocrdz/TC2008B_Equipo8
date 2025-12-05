@@ -1,11 +1,11 @@
 """
 Python flask server for traffic simulation visualization.
 
-Diego Córdova Rodríguez
-Lorena Estefanía Chewtat Torres
-Aquiba Yudah Benarroch Bittán
+Aquiba Yudah Benarroch Bittan, A01783710 
+Diego Córdova Rodríguez, A01781166 
+Lorena Estefanía Chewtat Torres, A01785378
 
-2025-11-29
+2025-12-04
 """
 
 from flask import Flask, request, jsonify
